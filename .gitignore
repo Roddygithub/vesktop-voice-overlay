@@ -1,0 +1,30 @@
+# Local BMAD installation and generated planning artifacts
+/_bmad/
+/_bmad-output/
+/.agents/
+/.opencode/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.token
+
+# Build and tool output
+/build/
+/dist/
+/coverage/
+/node_modules/
+/.venv/
+__pycache__/
+*.py[cod]
+
+# Editor and operating-system state
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
