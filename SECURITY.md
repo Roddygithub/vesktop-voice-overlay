@@ -6,9 +6,11 @@ The project has no released version yet.
 
 ## Reporting
 
-Report vulnerabilities privately through GitHub's private vulnerability
-reporting feature. Do not open a public issue containing credentials, Discord
-tokens, personal voice-channel data, or a working exploit.
+Contact the repository owner privately before sharing vulnerability details.
+Do not open an issue containing credentials, Discord tokens, personal
+voice-channel data, or a working exploit. GitHub private vulnerability
+reporting is not enabled while this repository remains private on its current
+account plan.
 
 ## Security Model
 
