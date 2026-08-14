@@ -40,5 +40,6 @@ access to Discord data and avoiding changes to the game process.
 ## Tooling
 
 - BMad Method is installed locally with `scripts/bootstrap-bmad.sh`.
-- Generated `_bmad`, `_bmad-output`, `.agents`, and `.opencode` trees stay
-  untracked; durable decisions belong in this repository.
+- The Vibe Coding guide is fetched locally with `scripts/bootstrap-vibe-coding.sh`.
+- Generated `_bmad`, `_bmad-output`, `.agents`, `.opencode`, and `_vibe-coding`
+  trees stay untracked; durable decisions belong in this repository.

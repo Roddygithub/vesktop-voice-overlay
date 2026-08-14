@@ -30,15 +30,19 @@ Planning stage. No working overlay has been released yet.
 ## Development Method
 
 The project uses [BMad Method](https://github.com/bmad-code-org/BMAD-METHOD)
-for product discovery, architecture, implementation, and review. Install the
-pinned project setup with:
+for product discovery, architecture, implementation, and review, and follows
+the [Vibe Coding guide](https://github.com/EnzeD/vibe-coding) for iterative,
+test-driven implementation with a local memory bank. Install the pinned project
+setup with:
 
 ```bash
 ./scripts/bootstrap-bmad.sh
+./scripts/bootstrap-vibe-coding.sh
 ```
 
-The generated BMAD files are local tooling and are intentionally ignored by
-Git. See `AGENTS.md` for the durable engineering constraints.
+The generated BMAD files and the pinned Vibe Coding guide are local tooling and
+are intentionally ignored by Git. See `AGENTS.md` for the durable engineering
+constraints.
 
 ## Upstream Projects
 

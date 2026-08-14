@@ -4,6 +4,9 @@
 /.agents/
 /.opencode/
 
+# Local copy of the pinned Vibe Coding guide
+/_vibe-coding/
+
 # Local configuration and secrets
 .env
 .env.*
