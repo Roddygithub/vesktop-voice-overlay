@@ -37,7 +37,10 @@ impl SpeakingIndicator {
             cr.fill().ok();
         });
 
-        Self { drawing_area, speaking }
+        Self {
+            drawing_area,
+            speaking,
+        }
     }
 
     pub fn widget(&self) -> &DrawingArea {

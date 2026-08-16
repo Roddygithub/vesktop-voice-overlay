@@ -6,7 +6,6 @@ use std::rc::Rc;
 use std::sync::Mutex;
 
 pub struct AvatarWidget {
-
     picture: Picture,
     current_url: Mutex<Option<String>>,
     size: i32,
@@ -84,7 +83,8 @@ impl AvatarWidget {
         {
             let mut data = surface.data().unwrap();
             for y in 0..height {
-                let src_row = &rgba.as_raw()[(y * width * 4) as usize..((y + 1) * width * 4) as usize];
+                let src_row =
+                    &rgba.as_raw()[(y * width * 4) as usize..((y + 1) * width * 4) as usize];
                 let dst_row = &mut data[(y * stride) as usize..((y + 1) * stride) as usize];
                 for x in 0..width {
                     let src_idx = (x * 4) as usize;
@@ -157,8 +157,7 @@ impl AvatarWidget {
             self.size,
             self.size,
             stride.try_into().unwrap(),
-        )
-        ;
+        );
 
         gdk4::Texture::for_pixbuf(&pixbuf)
     }

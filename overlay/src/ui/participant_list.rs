@@ -31,11 +31,8 @@ impl ParticipantList {
             self.list_box.remove(&row);
         }
 
-        let self_row = Self::create_participant_row(
-            &self.config,
-            &self.to_participant(&snapshot.self_),
-            true,
-        );
+        let self_row =
+            Self::create_participant_row(&self.config, &self.to_participant(&snapshot.self_), true);
         self.list_box.append(&self_row);
 
         let max = self.config.overlay.max_participants;
