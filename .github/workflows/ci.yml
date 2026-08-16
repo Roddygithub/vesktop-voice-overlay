@@ -38,16 +38,6 @@ jobs:
             pkg-config \
             build-essential
 
-      - name: Cache cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            overlay/target
-          key: ${{ runner.os }}-cargo-v7-${{ hashFiles('**/Cargo.lock') }}
-
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
@@ -59,7 +49,9 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Cargo check
-        run: cargo check --locked
+        run: |
+          export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig
+          cargo check --locked
 
       - name: Build overlay
         run: cargo build --locked
@@ -114,16 +106,6 @@ jobs:
             libcairo2-dev \
             pkg-config \
             build-essential
-
-      - name: Cache cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            overlay/target
-          key: ${{ runner.os }}-cargo-v7-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install Node.js
         uses: actions/setup-node@v4
