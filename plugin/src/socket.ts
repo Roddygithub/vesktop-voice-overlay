@@ -1,4 +1,5 @@
 import { PROTOCOL_HEADER, serializeSnapshot, deserializeSnapshot, getSocketPath, Snapshot } from './protocol';
+import net from 'net';
 
 export interface SocketClient {
   send: (snapshot: Snapshot) => void;
@@ -13,12 +14,11 @@ const BASE_RECONNECT_DELAY = 1000;
 const MAX_RECONNECT_DELAY = 30000;
 
 export function startSocketClient(socketPath: string, onConnect: OnConnectCallback): SocketClient {
-  let socket: import('net').Socket | null = null;
+  let socket: net.Socket | null = null;
   let isConnected = false;
-  let sendQueue: Snapshot[] = [];
+  const sendQueue: Snapshot[] = [];
 
   function connect() {
-    const net = require('net');
     const newSocket = net.createConnection(socketPath);
     socket = newSocket;
 
@@ -60,7 +60,7 @@ export function startSocketClient(socketPath: string, onConnect: OnConnectCallba
     });
   }
 
-  function setupDataHandler(sock: import('net').Socket) {
+  function setupDataHandler(sock: net.Socket) {
     let buffer = '';
     sock.on('data', (data: Buffer) => {
       buffer += data.toString();
