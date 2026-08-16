@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 env:
-  RUST_VERSION: '1.79'
+  RUST_VERSION: 'stable'
   NODE_VERSION: '20'
 
 jobs:
