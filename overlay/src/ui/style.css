@@ -1,0 +1,87 @@
+/* Vesktop Voice Overlay Styles */
+
+.overlay-container {
+    background-color: alpha(@theme_bg_color, 0.95);
+    border-radius: 12px;
+    box-shadow: 0 4px 24px alpha(@theme_fg_color, 0.15);
+    border: 1px solid alpha(@theme_fg_color, 0.1);
+    padding: 12px;
+}
+
+.overlay-scrolled {
+    background-color: transparent;
+    min-width: 250px;
+    min-height: 200px;
+}
+
+.participant-row {
+    padding: 8px 4px;
+    transition: background-color 0.15s ease;
+}
+
+.participant-row:hover {
+    background-color: alpha(@theme_selected_bg_color, 0.3);
+}
+
+.participant-avatar {
+    border-radius: 50%;
+    border: 2px solid alpha(@theme_fg_color, 0.1);
+    min-width: 40px;
+    min-height: 40px;
+}
+
+.participant-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: @theme_fg_color;
+    margin-left: 10px;
+}
+
+.speaking-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: @success_color;
+    margin-left: 8px;
+}
+
+.speaking-indicator.active {
+    animation: speaking-pulse 1s ease-in-out infinite;
+}
+
+@keyframes speaking-pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.5;
+        transform: scale(1.3);
+    }
+}
+
+.self-indicator {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: @accent_color;
+    margin-left: 6px;
+}
+
+.muted-indicator {
+    color: @warning_color;
+    font-size: 11px;
+    margin-left: 6px;
+}
+
+.deafened-indicator {
+    color: @error_color;
+    font-size: 11px;
+    margin-left: 6px;
+}
+
+.volume-indicator {
+    font-size: 11px;
+    color: alpha(@theme_fg_color, 0.6);
+    margin-left: 8px;
+}

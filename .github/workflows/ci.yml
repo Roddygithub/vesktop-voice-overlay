@@ -1,0 +1,159 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  RUST_VERSION: '1.79'
+  NODE_VERSION: '20'
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            overlay/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: plugin/package-lock.json
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-4-dev \
+            libadwaita-1-dev \
+            libgirepository1.0-dev \
+            libcairo2-dev \
+            pkg-config \
+            build-essential
+
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy lint
+        run: cargo clippy --workspace -- -D warnings
+
+      - name: Build overlay
+        run: cargo build --workspace --locked
+
+      - name: Test overlay
+        run: cargo test --workspace --locked
+
+      - name: Install plugin dependencies
+        working-directory: ./plugin
+        run: npm ci
+
+      - name: Typecheck plugin
+        working-directory: ./plugin
+        run: npm run typecheck
+
+      - name: Lint plugin
+        working-directory: ./plugin
+        run: npm run lint
+
+      - name: Test plugin
+        working-directory: ./plugin
+        run: npm test
+
+      - name: Build plugin
+        working-directory: ./plugin
+        run: npm run build
+
+  build-release:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            overlay/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-4-dev \
+            libadwaita-1-dev \
+            libgirepository1.0-dev \
+            libcairo2-dev \
+            pkg-config \
+            build-essential
+
+      - name: Build release overlay
+        run: cargo build --workspace --release --locked
+
+      - name: Upload overlay binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: vesktop-voice-overlay
+          path: overlay/target/release/vesktop-voice-overlay
+          retention-days: 7
+
+  build-plugin:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: plugin/package-lock.json
+
+      - name: Install plugin dependencies
+        working-directory: ./plugin
+        run: npm ci
+
+      - name: Build plugin
+        working-directory: ./plugin
+        run: npm run build
+
+      - name: Pack plugin
+        working-directory: ./plugin
+        run: npm pack
+
+      - name: Upload plugin package
+        uses: actions/upload-artifact@v4
+        with:
+          name: vesktop-voice-overlay-plugin
+          path: plugin/*.tgz
+          retention-days: 7

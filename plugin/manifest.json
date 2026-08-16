@@ -1,0 +1,12 @@
+{
+  "name": "Vesktop Voice Overlay",
+  "version": "0.1.0",
+  "description": "Wayland-native voice activity overlay for Vesktop",
+  "author": "Roddy",
+  "main": "index.js",
+  "manifest_version": 1,
+  "vencord_version": "1.0.0",
+  "tags": ["voice", "overlay", "wayland"],
+  "repository": "https://github.com/Roddygithub/vesktop-voice-overlay",
+  "license": "GPL-3.0-only"
+}

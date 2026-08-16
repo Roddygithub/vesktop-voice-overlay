@@ -1,0 +1,28 @@
+# Maintainer: Roddy <rod@rod.sh>
+pkgname=vesktop-voice-overlay
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Wayland-native voice activity overlay for Vesktop"
+arch=(x86_64)
+url="https://github.com/Roddygithub/vesktop-voice-overlay"
+license=(GPL-3.0-only)
+depends=(gtk4 libadwaita glib2)
+makedepends=(cargo git)
+source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  cd "$pkgname-$pkgver/overlay"
+  cargo build --release --locked
+}
+
+check() {
+  cd "$pkgname-$pkgver/overlay"
+  cargo test --locked
+}
+
+package() {
+  cd "$pkgname-$pkgver/overlay"
+  install -Dm755 "target/release/vesktop-voice-overlay" "$pkgdir/usr/bin/vesktop-voice-overlay"
+  install -Dm644 "../LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

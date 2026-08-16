@@ -1,0 +1,23 @@
+post_install() {
+  echo "Vesktop Voice Overlay installed!"
+  echo ""
+  echo "To use the overlay, you also need to install the Vencord plugin:"
+  echo "1. Open Vesktop"
+  echo "2. Go to Settings → Plugins"
+  echo "3. Click 'Install from Store' and search for 'Vesktop Voice Overlay'"
+  echo "   OR install from URL: https://github.com/Roddygithub/vesktop-voice-overlay/releases/download/v0.1.0/vesktop-voice-overlay-plugin-0.1.0.tgz"
+  echo ""
+  echo "Then start the overlay:"
+  echo "  vesktop-voice-overlay"
+  echo ""
+  echo "The overlay will automatically connect when you join a voice channel in Vesktop."
+}
+
+post_upgrade() {
+  post_install
+}
+
+pre_remove() {
+  echo "Removing Vesktop Voice Overlay..."
+  echo "Don't forget to also remove the Vencord plugin from Vesktop Settings → Plugins"
+}
