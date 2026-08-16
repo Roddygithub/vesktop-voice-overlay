@@ -25,23 +25,6 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
           components: rustfmt, clippy
 
-      - name: Cache cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            overlay/target
-          key: ${{ runner.os }}-cargo-v5-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: plugin/package-lock.json
-
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -52,6 +35,23 @@ jobs:
             libcairo2-dev \
             pkg-config \
             build-essential
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            overlay/target
+          key: ${{ runner.os }}-cargo-v6-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: plugin/package-lock.json
 
       - name: Check Rust formatting
         run: cargo fmt --all -- --check
@@ -100,16 +100,6 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
-      - name: Cache cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            overlay/target
-          key: ${{ runner.os }}-cargo-v5-${{ hashFiles('**/Cargo.lock') }}
-
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -120,6 +110,23 @@ jobs:
             libcairo2-dev \
             pkg-config \
             build-essential
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            overlay/target
+          key: ${{ runner.os }}-cargo-v6-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: plugin/package-lock.json
 
       - name: Build release overlay
         run: cargo build --release --locked
