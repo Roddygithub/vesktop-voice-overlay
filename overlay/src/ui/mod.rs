@@ -7,13 +7,13 @@ pub use participant_list::ParticipantList;
 pub use speaking_indicator::SpeakingIndicator;
 
 use gtk4::prelude::*;
-use gtk4::{Box, Orientation, ScrolledWindow, PolicyType};
+use gtk4::{Box, Orientation, PolicyType, ScrolledWindow};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
 use crate::config::Config;
-use crate::protocol::Snapshot;
 use crate::lifecycle::OverlayCommand;
+use crate::protocol::Snapshot;
 
 pub struct OverlayUI {
     container: Box,
@@ -23,7 +23,11 @@ pub struct OverlayUI {
 }
 
 impl OverlayUI {
-    pub async fn new(window: &gtk4::ApplicationWindow, config: &Config, ui_tx: mpsc::UnboundedSender<OverlayCommand>) -> anyhow::Result<Arc<Self>> {
+    pub async fn new(
+        window: &gtk4::ApplicationWindow,
+        config: &Config,
+        ui_tx: mpsc::UnboundedSender<OverlayCommand>,
+    ) -> anyhow::Result<Arc<Self>> {
         // Main container
         let container = Box::new(Orientation::Vertical, 8);
         container.set_margin_top(12);
@@ -41,7 +45,7 @@ impl OverlayUI {
 
         let participant_list = ParticipantList::new(config)?;
         scrolled.set_child(Some(participant_list.widget()));
-        
+
         container.append(&scrolled);
 
         // Apply CSS
@@ -55,7 +59,7 @@ impl OverlayUI {
         });
 
         window.set_child(Some(&ui.container));
-        
+
         Ok(ui)
     }
 

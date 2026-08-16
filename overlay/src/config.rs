@@ -2,9 +2,9 @@ use anyhow::Result;
 use dirs::config_dir;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::fs;
 use tracing::{debug, warn};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,12 +47,24 @@ pub struct SocketConfig {
     pub path: String,
 }
 
-fn default_position() -> String { "top-right".into() }
-fn default_max_participants() -> usize { 10 }
-fn default_avatar_size() -> i32 { 40 }
-fn default_theme() -> String { "auto".into() }
-fn default_pulse_ms() -> u64 { 1000 }
-fn default_true() -> bool { true }
+fn default_position() -> String {
+    "top-right".into()
+}
+fn default_max_participants() -> usize {
+    10
+}
+fn default_avatar_size() -> i32 {
+    40
+}
+fn default_theme() -> String {
+    "auto".into()
+}
+fn default_pulse_ms() -> u64 {
+    1000
+}
+fn default_true() -> bool {
+    true
+}
 fn default_socket_path() -> String {
     std::env::var("XDG_RUNTIME_DIR")
         .map(|dir| format!("{}/vesktop-voice-overlay.sock", dir))
@@ -93,7 +105,9 @@ impl Default for AppearanceConfig {
 
 impl Default for SocketConfig {
     fn default() -> Self {
-        Self { path: default_socket_path() }
+        Self {
+            path: default_socket_path(),
+        }
     }
 }
 

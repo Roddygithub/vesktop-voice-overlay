@@ -18,7 +18,7 @@ impl AvatarWidget {
         picture.set_size_request(size, size);
         picture.set_can_shrink(false);
         picture.add_css_class("participant-avatar");
-        
+
         let this = Arc::new(Self {
             picture,
             current_url: Arc::new(Mutex::new(None)),
@@ -66,17 +66,23 @@ impl AvatarWidget {
     fn create_placeholder_texture(&self) -> gdk4::Texture {
         use cairo::ImageSurface;
         use gdk_pixbuf::Pixbuf;
-        
+
         let mut surface = ImageSurface::create(cairo::Format::ARgb32, self.size, self.size)
             .expect("Failed to create surface");
         let cr = cairo::Context::new(&surface).expect("Failed to create context");
-        
+
         // Draw circle background
         let radius = (self.size as f64) / 2.0;
-        cr.arc(radius, radius, radius - 1.0, 0.0, 2.0 * std::f64::consts::PI);
+        cr.arc(
+            radius,
+            radius,
+            radius - 1.0,
+            0.0,
+            2.0 * std::f64::consts::PI,
+        );
         cr.set_source_rgba(0.3, 0.3, 0.3, 1.0);
         cr.fill().expect("Failed to fill");
-        
+
         // Draw initial letter
         cr.set_source_rgba(1.0, 1.0, 1.0, 1.0);
         cr.select_font_face("Sans", cairo::FontSlant::Normal, cairo::FontWeight::Bold);
@@ -87,9 +93,9 @@ impl AvatarWidget {
             radius - extents.height() / 2.0 - extents.y_bearing(),
         );
         cr.show_text("?").expect("Failed to show text");
-        
+
         surface.flush();
-        
+
         let stride = surface.stride();
         let data = surface.data().expect("Failed to get surface data");
         let pixbuf = Pixbuf::from_mut_slice(
@@ -101,7 +107,7 @@ impl AvatarWidget {
             self.size,
             stride as i32,
         );
-        
+
         gdk4::Texture::for_pixbuf(&pixbuf)
     }
 }

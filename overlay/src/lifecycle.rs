@@ -78,7 +78,7 @@ impl OverlayLifecycle {
         let source_id = glib::timeout_add_local_once(delay, move || {
             let connected = *lifecycle.client_connected.lock().unwrap();
             let socket_ready = *lifecycle.socket_ready.lock().unwrap();
-            
+
             if !connected || !socket_ready {
                 let _ = lifecycle.cmd_tx.send(OverlayCommand::Hide);
                 debug!("Overlay hidden (no client or socket not ready)");

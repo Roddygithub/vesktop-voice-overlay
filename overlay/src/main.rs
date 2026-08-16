@@ -25,7 +25,7 @@ struct Args {
     /// Enable debug logging
     #[arg(short, long)]
     debug: bool,
-    
+
     /// Print version and exit
     #[arg(short, long)]
     version: bool,
@@ -33,20 +33,23 @@ struct Args {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    
+
     if args.version {
         println!("vesktop-voice-overlay {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
     }
 
     init_logging(args.debug);
-    
-    info!("Starting Vesktop Voice Overlay v{}", env!("CARGO_PKG_VERSION"));
-    
+
+    info!(
+        "Starting Vesktop Voice Overlay v{}",
+        env!("CARGO_PKG_VERSION")
+    );
+
     let application = Application::builder()
         .application_id("com.github.roddygithub.vesktop-voice-overlay")
         .build();
-    
+
     application.connect_activate(move |app| {
         let app = app.clone();
         glib::spawn_future_local(async move {
@@ -55,7 +58,7 @@ fn main() -> Result<()> {
             }
         });
     });
-    
+
     application.run();
     Ok(())
 }
@@ -63,15 +66,15 @@ fn main() -> Result<()> {
 async fn run_application(app: &Application) -> Result<()> {
     let config = Config::load().unwrap_or_default();
     let config = Arc::new(config);
-    
+
     let window = create_layer_shell_window(app, &config)?;
-    
+
     // Create channel for UI commands (thread-safe)
     let (cmd_tx, mut cmd_rx) = mpsc::unbounded_channel();
-    
+
     let _lifecycle = OverlayLifecycle::new(cmd_tx.clone());
     let ui = OverlayUI::new(&window, &config, cmd_tx.clone()).await?;
-    
+
     // Handle UI commands in the GTK main loop
     let window_clone = window.clone();
     glib::spawn_future_local(async move {
@@ -103,23 +106,23 @@ async fn run_application(app: &Application) -> Result<()> {
             }
         }
     });
-    
+
     let socket_path = config.socket_path();
     let mut server = SocketServer::new(socket_path.to_string(), cmd_tx);
-    
+
     // Start socket server in background using glib's main context
     glib::spawn_future_local(async move {
         if let Err(e) = server.run().await {
             error!("Socket server error: {}", e);
         }
     });
-    
+
     // Handle application shutdown
     let window_clone = window.clone();
     app.connect_shutdown(move |_| {
         window_clone.close();
     });
-    
+
     window.present();
     Ok(())
 }
@@ -130,7 +133,7 @@ fn init_logging(debug: bool) {
     } else {
         "info,vesktop_voice_overlay=debug"
     };
-    
+
     tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_target(false)

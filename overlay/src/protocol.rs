@@ -70,7 +70,7 @@ mod tests {
     #[test]
     fn test_deserialize_valid_snapshot() {
         let json = r#"{"version":1,"timestamp":1692000000000,"self":{"userId":"123","username":"Test","avatarUrl":"","mute":false,"deaf":false,"speaking":true},"participants":[{"userId":"456","username":"Friend","avatarUrl":"","speaking":false,"volume":80}]}"#;
-        
+
         let snapshot = Snapshot::deserialize(json).expect("Should deserialize");
         assert_eq!(snapshot.version, 1);
         assert_eq!(snapshot.timestamp, 1692000000000);

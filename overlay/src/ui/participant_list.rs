@@ -1,6 +1,6 @@
 use anyhow::Result;
 use gtk4::prelude::*;
-use gtk4::{Box, Label, ListBox, ListBoxRow, Orientation, SelectionMode, Align, pango};
+use gtk4::{pango, Align, Box, Label, ListBox, ListBoxRow, Orientation, SelectionMode};
 use std::sync::Arc;
 
 use crate::config::Config;
@@ -33,13 +33,19 @@ impl ParticipantList {
         }
 
         // Add self first
-        let self_row = Self::create_participant_row(&self.config, &self.into_participant(&snapshot.self_), true);
+        let self_row = Self::create_participant_row(
+            &self.config,
+            &self.into_participant(&snapshot.self_),
+            true,
+        );
         self.list_box.append(&self_row);
 
         // Add other participants (limit to max_participants)
         let max = self.config.overlay.max_participants;
         for (i, participant) in snapshot.participants.iter().enumerate() {
-            if i >= max { break; }
+            if i >= max {
+                break;
+            }
             let row = Self::create_participant_row(&self.config, participant, false);
             self.list_box.append(&row);
         }
@@ -55,7 +61,11 @@ impl ParticipantList {
         }
     }
 
-    fn create_participant_row(config: &Config, participant: &Participant, is_self: bool) -> ListBoxRow {
+    fn create_participant_row(
+        config: &Config,
+        participant: &Participant,
+        is_self: bool,
+    ) -> ListBoxRow {
         let row = ListBoxRow::new();
         row.add_css_class("participant-row");
         row.set_activatable(false);
