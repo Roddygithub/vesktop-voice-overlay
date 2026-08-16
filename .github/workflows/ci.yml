@@ -35,6 +35,7 @@ jobs:
             libadwaita-1-dev \
             libgirepository1.0-dev \
             libcairo2-dev \
+            libgtk4-layer-shell-dev \
             pkg-config \
             build-essential
 
@@ -99,6 +100,7 @@ jobs:
             libadwaita-1-dev \
             libgirepository1.0-dev \
             libcairo2-dev \
+            libgtk4-layer-shell-dev \
             pkg-config \
             build-essential
 
