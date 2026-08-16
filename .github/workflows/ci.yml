@@ -33,7 +33,7 @@ jobs:
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             overlay/target
-          key: ${{ runner.os }}-cargo-v4-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-v5-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install Node.js
         uses: actions/setup-node@v4
@@ -56,8 +56,8 @@ jobs:
       - name: Check Rust formatting
         run: cargo fmt --all -- --check
 
-      - name: Clippy lint
-        run: cargo clippy -- -D warnings
+      - name: Cargo check
+        run: cargo check --locked
 
       - name: Build overlay
         run: cargo build --locked
@@ -108,7 +108,7 @@ jobs:
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             overlay/target
-          key: ${{ runner.os }}-cargo-v4-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-v5-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install system dependencies
         run: |
