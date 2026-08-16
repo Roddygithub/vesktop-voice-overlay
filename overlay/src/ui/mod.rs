@@ -8,27 +8,22 @@ pub use speaking_indicator::SpeakingIndicator;
 
 use gtk4::prelude::*;
 use gtk4::{Box, Orientation, PolicyType, ScrolledWindow};
-use std::sync::Arc;
-use tokio::sync::mpsc;
+use std::rc::Rc;
 
 use crate::config::Config;
-use crate::lifecycle::OverlayCommand;
 use crate::protocol::Snapshot;
 
 pub struct OverlayUI {
     container: Box,
     participant_list: ParticipantList,
     _scrolled: ScrolledWindow,
-    ui_tx: mpsc::UnboundedSender<OverlayCommand>,
 }
 
 impl OverlayUI {
     pub async fn new(
         window: &gtk4::ApplicationWindow,
         config: &Config,
-        ui_tx: mpsc::UnboundedSender<OverlayCommand>,
-    ) -> anyhow::Result<Arc<Self>> {
-        // Main container
+    ) -> anyhow::Result<Rc<Self>> {
         let container = Box::new(Orientation::Vertical, 8);
         container.set_margin_top(12);
         container.set_margin_bottom(12);
@@ -36,7 +31,6 @@ impl OverlayUI {
         container.set_margin_end(12);
         container.add_css_class("overlay-container");
 
-        // Scrolled window for participant list
         let scrolled = ScrolledWindow::new();
         scrolled.set_policy(PolicyType::Never, PolicyType::Automatic);
         scrolled.set_vexpand(true);
@@ -48,23 +42,17 @@ impl OverlayUI {
 
         container.append(&scrolled);
 
-        // Apply CSS
         Self::apply_css();
 
-        let ui = Arc::new(Self {
+        let ui = Rc::new(Self {
             container,
             participant_list,
             _scrolled: scrolled,
-            ui_tx,
         });
 
         window.set_child(Some(&ui.container));
 
         Ok(ui)
-    }
-
-    pub fn widget(&self) -> &Box {
-        &self.container
     }
 
     pub fn update_from_snapshot(&self, snapshot: &Snapshot) {

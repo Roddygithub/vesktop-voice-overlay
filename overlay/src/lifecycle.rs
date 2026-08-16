@@ -36,6 +36,7 @@ impl OverlayLifecycle {
         })
     }
 
+    #[expect(dead_code)]
     pub fn update_snapshot(&self, snapshot: Snapshot) {
         {
             let mut current = self.snapshot.lock().unwrap();
@@ -45,6 +46,7 @@ impl OverlayLifecycle {
         self.show_overlay();
     }
 
+    #[expect(dead_code)]
     pub fn on_client_connected(&self) {
         *self.client_connected.lock().unwrap() = true;
         info!("Plugin connected");
@@ -52,12 +54,14 @@ impl OverlayLifecycle {
         let _ = self.cmd_tx.send(OverlayCommand::Show);
     }
 
+    #[expect(dead_code)]
     pub fn on_client_disconnected(&self) {
         *self.client_connected.lock().unwrap() = false;
         info!("Plugin disconnected");
         self.schedule_hide(Duration::from_secs(5));
     }
 
+    #[expect(dead_code)]
     pub fn set_socket_ready(&self, ready: bool) {
         *self.socket_ready.lock().unwrap() = ready;
         if !ready {
@@ -67,11 +71,13 @@ impl OverlayLifecycle {
         }
     }
 
+    #[expect(dead_code)]
     fn show_overlay(&self) {
         self.cancel_hide_timeout();
         let _ = self.cmd_tx.send(OverlayCommand::Show);
     }
 
+    #[expect(dead_code)]
     fn schedule_hide(&self, delay: Duration) {
         self.cancel_hide_timeout();
         let lifecycle = self.clone();
@@ -87,12 +93,14 @@ impl OverlayLifecycle {
         *self.hide_timeout.lock().unwrap() = Some(source_id);
     }
 
+    #[expect(dead_code)]
     fn cancel_hide_timeout(&self) {
         if let Some(id) = self.hide_timeout.lock().unwrap().take() {
             id.remove();
         }
     }
 
+    #[expect(dead_code)]
     pub fn current_snapshot(&self) -> Option<Snapshot> {
         self.snapshot.lock().unwrap().clone()
     }

@@ -1,10 +1,11 @@
 use gtk4::prelude::*;
-use gtk4::{DrawingArea, Widget};
-use std::sync::Arc;
+use gtk4::DrawingArea;
+use std::rc::Rc;
+use std::sync::Mutex;
 
 pub struct SpeakingIndicator {
     drawing_area: DrawingArea,
-    speaking: Arc<std::sync::Mutex<bool>>,
+    speaking: Rc<Mutex<bool>>,
 }
 
 impl SpeakingIndicator {
@@ -13,7 +14,7 @@ impl SpeakingIndicator {
         drawing_area.set_size_request(8, 8);
         drawing_area.add_css_class("speaking-indicator");
 
-        let speaking = Arc::new(std::sync::Mutex::new(speaking));
+        let speaking = Rc::new(Mutex::new(speaking));
         let speaking_clone = speaking.clone();
         let drawing_area_clone = drawing_area.clone();
 
@@ -25,7 +26,6 @@ impl SpeakingIndicator {
                 drawing_area_clone.remove_css_class("active");
             }
 
-            // Draw a simple circle
             let width = drawing_area_clone.width() as f64;
             let height = drawing_area_clone.height() as f64;
             let radius = width.min(height) / 2.0 - 1.0;
@@ -37,16 +37,14 @@ impl SpeakingIndicator {
             cr.fill().ok();
         });
 
-        Self {
-            drawing_area,
-            speaking,
-        }
+        Self { drawing_area, speaking }
     }
 
     pub fn widget(&self) -> &DrawingArea {
         &self.drawing_area
     }
 
+    #[expect(dead_code)]
     pub fn set_speaking(&self, speaking: bool) {
         *self.speaking.lock().unwrap() = speaking;
         self.drawing_area.queue_draw();

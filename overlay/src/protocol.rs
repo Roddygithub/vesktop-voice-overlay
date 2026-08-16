@@ -45,18 +45,19 @@ impl Snapshot {
             return None;
         }
         let snapshot: Snapshot = serde_json::from_str(line).ok()?;
-        // Validate protocol version
         if snapshot.version != PROTOCOL_VERSION {
             return None;
         }
         Some(snapshot)
     }
 
+    #[expect(dead_code)]
     pub fn serialize(&self) -> String {
         serde_json::to_string(self).unwrap_or_default()
     }
 }
 
+#[expect(dead_code)]
 pub fn get_socket_path() -> String {
     std::env::var("XDG_RUNTIME_DIR")
         .map(|dir| format!("{}/vesktop-voice-overlay.sock", dir))

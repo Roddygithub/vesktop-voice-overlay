@@ -1,7 +1,6 @@
 use anyhow::Result;
 use std::io::{BufRead, Write};
 use std::os::unix::net::UnixListener;
-use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -24,12 +23,10 @@ impl SocketServer {
     }
 
     pub async fn run(&mut self) -> Result<()> {
-        // Remove existing socket file
         let _ = std::fs::remove_file(&self.socket_path);
 
         let listener = UnixListener::bind(&self.socket_path)?;
 
-        // Set socket permissions to user-only (0700)
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -38,12 +35,10 @@ impl SocketServer {
             std::fs::set_permissions(&self.socket_path, perms)?;
         }
 
-        // Set non-blocking for accept with timeout
         listener.set_nonblocking(true)?;
 
         info!("Socket server listening on {}", self.socket_path);
 
-        // Notify lifecycle that socket is ready
         let _ = self.cmd_tx.send(OverlayCommand::SocketReady);
 
         loop {
@@ -57,7 +52,6 @@ impl SocketServer {
                     });
                 }
                 Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                    // No connection ready, sleep briefly
                     thread::sleep(Duration::from_millis(50));
                     continue;
                 }
@@ -81,7 +75,6 @@ fn handle_connection(
     mut stream: std::os::unix::net::UnixStream,
     cmd_tx: mpsc::UnboundedSender<OverlayCommand>,
 ) -> Result<()> {
-    // Validate peer credentials (UID match)
     #[cfg(unix)]
     {
         use libc::{getsockopt, ucred, SOL_SOCKET, SO_PEERCRED};
@@ -114,7 +107,6 @@ fn handle_connection(
         }
     }
 
-    // Send protocol header
     stream.write_all(PROTOCOL_HEADER.as_bytes())?;
     stream.flush()?;
 
@@ -128,7 +120,6 @@ fn handle_connection(
         let bytes_read = reader.read_line(&mut line)?;
 
         if bytes_read == 0 {
-            // Client disconnected
             break;
         }
 
