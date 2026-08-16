@@ -13,6 +13,9 @@ env:
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./overlay
     steps:
       - uses: actions/checkout@v4
 
@@ -54,13 +57,13 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Clippy lint
-        run: cargo clippy --workspace -- -D warnings
+        run: cargo clippy -- -D warnings
 
       - name: Build overlay
-        run: cargo build --workspace --locked
+        run: cargo build --locked
 
       - name: Test overlay
-        run: cargo test --workspace --locked
+        run: cargo test --locked
 
       - name: Install plugin dependencies
         working-directory: ./plugin
@@ -86,6 +89,9 @@ jobs:
     needs: lint-and-test
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    defaults:
+      run:
+        working-directory: ./overlay
     steps:
       - uses: actions/checkout@v4
 
@@ -116,7 +122,7 @@ jobs:
             build-essential
 
       - name: Build release overlay
-        run: cargo build --workspace --release --locked
+        run: cargo build --release --locked
 
       - name: Upload overlay binary
         uses: actions/upload-artifact@v4
