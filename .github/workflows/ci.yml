@@ -25,6 +25,9 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
           components: rustfmt, clippy
 
+      - name: Update clippy
+        run: rustup component add clippy --toolchain stable
+
       - name: Cache cargo
         uses: actions/cache@v4
         with:
