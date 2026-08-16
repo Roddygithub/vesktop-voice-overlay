@@ -90,7 +90,7 @@ export interface WebpackModules {
 
 // React components
 export interface ReactComponent {
-  (props: any): JSX.Element;
+  (props: any): any;
 }
 
 // Flux dispatcher

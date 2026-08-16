@@ -19,48 +19,50 @@ export function startSocketClient(socketPath: string, onConnect: OnConnectCallba
 
   function connect() {
     const net = require('net');
-    socket = net.createConnection(socketPath);
+    const newSocket = net.createConnection(socketPath);
+    socket = newSocket;
 
-    socket.on('connect', () => {
+    newSocket.on('connect', () => {
       console.log('[Vesktop Voice Overlay] Connected to overlay socket');
       isConnected = true;
       reconnectAttempts = 0;
       
       // Read version header from server
       let headerBuffer = '';
-      socket!.on('data', (data: Buffer) => {
+      const onData = (data: Buffer) => {
         headerBuffer += data.toString();
         if (headerBuffer.includes('\n')) {
           const header = headerBuffer.trim();
           if (header === `VESKTOP_VOICE_OVERLAY/1.0`) {
             console.log('[Vesktop Voice Overlay] Protocol version validated');
-            socket!.off('data', arguments.callee);
-            setupDataHandler();
+            newSocket.off('data', onData);
+            setupDataHandler(newSocket);
             onConnect(sendSnapshot);
             flushQueue();
           } else {
             console.error('[Vesktop Voice Overlay] Invalid protocol header:', header);
-            socket!.destroy();
+            newSocket.destroy();
           }
         }
-      });
+      };
+      newSocket.on('data', onData);
     });
 
-    socket.on('error', (err: Error) => {
+    newSocket.on('error', (err: Error) => {
       console.error('[Vesktop Voice Overlay] Socket error:', err.message);
       scheduleReconnect();
     });
 
-    socket.on('close', () => {
+    newSocket.on('close', () => {
       console.log('[Vesktop Voice Overlay] Socket closed');
       isConnected = false;
       scheduleReconnect();
     });
   }
 
-  function setupDataHandler() {
+  function setupDataHandler(sock: import('net').Socket) {
     let buffer = '';
-    socket!.on('data', (data: Buffer) => {
+    sock.on('data', (data: Buffer) => {
       buffer += data.toString();
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';

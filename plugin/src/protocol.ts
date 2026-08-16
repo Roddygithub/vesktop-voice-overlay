@@ -44,6 +44,6 @@ export function deserializeSnapshot(line: string): Snapshot | null {
 }
 
 export function getSocketPath(): string {
-  const runtimeDir = process.env.XDG_RUNTIME_DIR || `/tmp/vesktop-voice-overlay-${process.getuid()}`;
+  const runtimeDir = process.env.XDG_RUNTIME_DIR || `/tmp/vesktop-voice-overlay-${(process as any).getuid?.() || 1000}`;
   return `${runtimeDir}/vesktop-voice-overlay.sock`;
 }
