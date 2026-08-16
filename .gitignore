@@ -31,3 +31,5 @@ __pycache__/
 *.swp
 *~
 .DS_Store
+overlay/target/
+plugin/node_modules/
