@@ -16,6 +16,8 @@ jobs:
     defaults:
       run:
         working-directory: ./overlay
+    env:
+      PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig
     steps:
       - uses: actions/checkout@v4
 
@@ -44,7 +46,7 @@ jobs:
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             overlay/target
-          key: ${{ runner.os }}-cargo-v6-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-v7-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install Node.js
         uses: actions/setup-node@v4
@@ -92,6 +94,8 @@ jobs:
     defaults:
       run:
         working-directory: ./overlay
+    env:
+      PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig
     steps:
       - uses: actions/checkout@v4
 
@@ -119,7 +123,7 @@ jobs:
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             overlay/target
-          key: ${{ runner.os }}-cargo-v6-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-v7-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install Node.js
         uses: actions/setup-node@v4
