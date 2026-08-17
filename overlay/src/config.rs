@@ -40,10 +40,18 @@ pub struct AppearanceConfig {
     pub show_names: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SocketConfig {
     #[serde(default = "default_socket_path")]
     pub path: String,
+}
+
+impl Default for SocketConfig {
+    fn default() -> Self {
+        Self {
+            path: default_socket_path(),
+        }
+    }
 }
 
 fn default_position() -> String {

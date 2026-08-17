@@ -1,8 +1,10 @@
 /* Vesktop Voice Overlay Plugin - GPL-3.0 */
 "use strict";
+var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __export = (target, all) => {
   for (var name in all)
@@ -16,6 +18,14 @@ var __copyProps = (to, from, except, desc) => {
   }
   return to;
 };
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/index.ts
@@ -25,6 +35,9 @@ __export(index_exports, {
   plugin: () => plugin
 });
 module.exports = __toCommonJS(index_exports);
+
+// src/native.ts
+var import_net = __toESM(require("net"));
 
 // src/protocol.ts
 var PROTOCOL_VERSION = 1;
@@ -45,57 +58,58 @@ function deserializeSnapshot(line) {
   }
 }
 function getSocketPath() {
-  const runtimeDir = process.env.XDG_RUNTIME_DIR || `/tmp/vesktop-voice-overlay-${process.getuid()}`;
+  const runtimeDir = process.env.XDG_RUNTIME_DIR || `/tmp/vesktop-voice-overlay-${process.getuid?.() || 1e3}`;
   return `${runtimeDir}/vesktop-voice-overlay.sock`;
 }
 
-// src/socket.ts
+// src/native.ts
 var reconnectAttempts = 0;
 var MAX_RECONNECT_ATTEMPTS = 5;
 var BASE_RECONNECT_DELAY = 1e3;
 var MAX_RECONNECT_DELAY = 3e4;
-function startSocketClient(socketPath, onConnect) {
+function startNativeSocketClient(socketPath, onConnect) {
   let socket = null;
   let isConnected = false;
-  let sendQueue = [];
+  const sendQueue = [];
   function connect() {
-    const net = require("net");
-    socket = net.createConnection(socketPath);
-    socket.on("connect", () => {
+    const newSocket = import_net.default.createConnection(socketPath);
+    socket = newSocket;
+    newSocket.on("connect", () => {
       console.log("[Vesktop Voice Overlay] Connected to overlay socket");
       isConnected = true;
       reconnectAttempts = 0;
       let headerBuffer = "";
-      socket.on("data", (data) => {
+      const onData = (data) => {
         headerBuffer += data.toString();
         if (headerBuffer.includes("\n")) {
           const header = headerBuffer.trim();
           if (header === `VESKTOP_VOICE_OVERLAY/1.0`) {
             console.log("[Vesktop Voice Overlay] Protocol version validated");
-            socket.off("data", arguments.callee);
-            setupDataHandler();
+            newSocket.off("data", onData);
+            setupDataHandler(newSocket);
             onConnect(sendSnapshot2);
             flushQueue();
           } else {
             console.error("[Vesktop Voice Overlay] Invalid protocol header:", header);
-            socket.destroy();
+            newSocket.destroy();
           }
         }
-      });
+      };
+      newSocket.on("data", onData);
     });
-    socket.on("error", (err) => {
+    newSocket.on("error", (err) => {
       console.error("[Vesktop Voice Overlay] Socket error:", err.message);
       scheduleReconnect();
     });
-    socket.on("close", () => {
+    newSocket.on("close", () => {
       console.log("[Vesktop Voice Overlay] Socket closed");
       isConnected = false;
       scheduleReconnect();
     });
   }
-  function setupDataHandler() {
+  function setupDataHandler(sock) {
     let buffer = "";
-    socket.on("data", (data) => {
+    sock.on("data", (data) => {
       buffer += data.toString();
       const lines = buffer.split("\n");
       buffer = lines.pop() || "";
@@ -152,6 +166,15 @@ function startSocketClient(socketPath, onConnect) {
   return {
     send: sendSnapshot2,
     disconnect
+  };
+}
+
+// src/socket.ts
+function startSocketClient(socketPath, onConnect) {
+  const nativeClient = startNativeSocketClient(socketPath, onConnect);
+  return {
+    send: nativeClient.send,
+    disconnect: nativeClient.disconnect
   };
 }
 

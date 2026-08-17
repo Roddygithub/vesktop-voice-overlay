@@ -50,7 +50,7 @@ yay -S vesktop-voice-overlay
 
 # 2. Vencord Plugin (via Vesktop UI)
 # Vesktop → Settings → Plugins → Install from Store → "Vesktop Voice Overlay"
-# OR: Install from file → vesktop-voice-overlay-plugin-1.0.0.tgz
+# OR: Install from file → vesktop-voice-overlay-plugin-0.1.0.tgz
 
 # 3. Launch overlay
 vesktop-voice-overlay
@@ -87,13 +87,13 @@ cargo build --release
 cd ~/vesktop-voice-overlay/plugin
 npm ci
 npm run build
-npm pack  # Produces vesktop-voice-overlay-plugin-1.0.0.tgz
+npm pack  # Produces vesktop-voice-overlay-plugin-0.1.0.tgz
 ```
 
 #### Install Plugin in Vesktop
 1. Open Vesktop → Settings → Plugins
 2. Click **"Install from file"**
-3. Select `vesktop-voice-overlay-plugin-1.0.0.tgz`
+3. Select `vesktop-voice-overlay-plugin-0.1.0.tgz`
 
 ### Run
 ```bash
@@ -171,9 +171,10 @@ vesktop-voice-overlay/
 │   ├── src/
 │   │   ├── index.ts          # Plugin entry point
 │   │   ├── protocol.ts       # Socket protocol types + serialization
-│   │   ├── socket.ts         # Unix socket client + reconnection
+│   │   ├── native.ts         # Node.js socket client (main process, net)
+│   │   ├── socket.ts         # Socket client facade + reconnection
 │   │   ├── snapshot.ts       # Voice state → snapshot builder
-│   │   ├── socket.ts         # Unix socket client
+│   │   ├── voiceState.ts     # Vencord voice state accessors
 │   │   └── vencord/api.ts    # Vencord API types
 │   ├── manifest.json         # Vencord manifest
 │   ├── package.json
