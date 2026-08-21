@@ -2,7 +2,9 @@
 
 ## Supported Versions
 
-The project has no released version yet.
+| Version | Supported |
+|---------|-----------|
+| 1.0.0   | Yes       |
 
 ## Reporting
 

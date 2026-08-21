@@ -71,4 +71,39 @@ Vesktop (Vencord Plugin) → Unix Socket ($XDG_RUNTIME_DIR) → Overlay (GTK4 + 
 
 ---
 
+## Bootstrap AI — Statut
+
+| Phase Bootstrap | Statut | Date | Notes |
+|-----------------|--------|------|-------|
+| **Phase 1 — INSPECT/AUDIT** | ✅ Terminé | 2026-08-21 | BROWNFIELD/STANDARD, audit outils IA |
+| **Phase 2 — PROPOSE** | ✅ Terminé | 2026-08-21 | SINGLE_MODEL, MiMo V2.5 Free, Level 1 |
+| **Phase 3 — BASELINE** | ✅ PASS | 2026-08-21 | Plugin 6/6, Overlay 5/5, clippy OK, fmt OK |
+| **Phase 4 — CLEANUP** | ✅ Terminé | 2026-08-21 | Scripts legacy supprimés, docs mises à jour |
+
+### Configuration opérationnelle
+
+```
+MODEL_MODE: SINGLE_MODEL
+MODÈLE: MiMo V2.5 Free
+RÔLES: Lead / Explorer / Implementer / Reviewer (même modèle)
+MÉTHODOLOGIE: Aucune (memory-bank existant suffit)
+AUTONOMIE: Level 1 — Supervised
+FALLBACK: NOT AVAILABLE
+```
+
+### Remediation Phase 3
+
+- `overlay/src/protocol.rs:54` : `#[expect(dead_code)]` → `#[allow(dead_code)]`
+- `overlay/src/protocol.rs:79` : `assert_eq!(x, true)` → `assert!(x)`
+
+### Nettoyage Phase 4
+
+- `scripts/bootstrap-bmad.sh` : supprimé (legacy BMAD non retenu)
+- `scripts/bootstrap-vibe-coding.sh` : supprimé (legacy non retenu)
+- `AGENTS.md` : références aux scripts supprimées
+- `CONTRIBUTING.md` : workflow post-release reflété
+
+---
+
 *Projet livré — v1.0.0 — 2026-08-16*
+*Bootstrap COMPLETE — 2026-08-21*

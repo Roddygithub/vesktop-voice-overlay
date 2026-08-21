@@ -7,8 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-16
+
 ### Added
-- Initial project structure and architecture
+
+- Monorepo structure with `plugin/` and `overlay/`
 - Unix socket protocol v1 (JSON Lines)
 - Vencord plugin (TypeScript) with voice state extraction
 - Overlay application (Rust + GTK4 + layer-shell)
@@ -19,18 +22,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - UID validation via SO_PEERCRED
 - TOML configuration with hot-reload
 - AUR packaging support
-
-## [0.1.0] - 2026-08-16
-
-### Added
-- Monorepo structure with plugin/ and overlay/
-- Socket protocol v1 specification
-- Shared types (TypeScript + Rust)
 - CI workflow (GitHub Actions)
-- Vencord plugin with socket client
-- GTK4 layer-shell overlay with click-through
-- Socket server with peer credential validation
-- UI components: participant list, avatar, speaking indicator
-- Lifecycle management (auto hide/show)
-- AUR PKGBUILD
-- Release workflow
+- Release workflow with GitHub Releases and AUR auto-update

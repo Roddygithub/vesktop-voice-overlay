@@ -51,7 +51,7 @@ impl Snapshot {
         Some(snapshot)
     }
 
-    #[expect(dead_code)]
+    #[allow(dead_code)]
     pub fn serialize(&self) -> String {
         serde_json::to_string(self).unwrap_or_default()
     }
@@ -76,7 +76,7 @@ mod tests {
         assert_eq!(snapshot.version, 1);
         assert_eq!(snapshot.timestamp, 1692000000000);
         assert_eq!(snapshot.self_.user_id, "123");
-        assert_eq!(snapshot.self_.speaking, true);
+        assert!(snapshot.self_.speaking);
         assert_eq!(snapshot.participants.len(), 1);
         assert_eq!(snapshot.participants[0].volume, Some(80));
     }
