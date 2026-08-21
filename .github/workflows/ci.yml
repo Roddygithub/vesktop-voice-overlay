@@ -100,13 +100,12 @@ jobs:
         run: npm install -g pnpm@9
 
       - name: Clone Vencord (pinned revision)
-        run: git clone --depth 1 https://github.com/Vendicated/Vencord.git /tmp/Vencord
+        run: git clone https://github.com/Vendicated/Vencord.git /tmp/Vencord
         working-directory: /tmp
 
       - name: Checkout pinned Vencord revision
         run: |
           cd /tmp/Vencord
-          git fetch --depth 1 origin ${{ env.VENCORD_REV }}
           git checkout ${{ env.VENCORD_REV }}
 
       - name: Install plugin into Vencord userplugins
