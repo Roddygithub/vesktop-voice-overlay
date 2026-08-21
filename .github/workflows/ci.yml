@@ -8,7 +8,7 @@ on:
 
 env:
   RUST_VERSION: '1.97'
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'
   VENCORD_REV: 'ef29bbeb'
 
 jobs:
@@ -119,7 +119,7 @@ jobs:
              /tmp/Vencord/src/userplugins/vesktopVoiceOverlay/
 
       - name: Install Vencord dependencies
-        run: pnpm install
+        run: pnpm install --no-frozen-lockfile
         working-directory: /tmp/Vencord
 
       - name: Build Vencord
