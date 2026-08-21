@@ -69,7 +69,7 @@ async fn run_application(app: &Application) -> Result<()> {
 
     let (cmd_tx, mut cmd_rx) = mpsc::unbounded_channel();
 
-    let _lifecycle = OverlayLifecycle::new(cmd_tx.clone());
+    let lifecycle = OverlayLifecycle::new(cmd_tx.clone());
     let ui = OverlayUI::new(&window, &config).await?;
 
     let window_clone = window.clone();
@@ -87,7 +87,18 @@ async fn run_application(app: &Application) -> Result<()> {
                 OverlayCommand::Hide => {
                     window_clone.hide();
                 }
-                _ => {}
+                OverlayCommand::ClientConnected => {
+                    lifecycle.on_client_connected();
+                }
+                OverlayCommand::ClientDisconnected => {
+                    lifecycle.on_client_disconnected();
+                }
+                OverlayCommand::SocketReady => {
+                    lifecycle.set_socket_ready(true);
+                }
+                OverlayCommand::SocketNotReady => {
+                    lifecycle.set_socket_ready(false);
+                }
             }
         }
     });

@@ -46,7 +46,6 @@ impl OverlayLifecycle {
         self.show_overlay();
     }
 
-    #[expect(dead_code)]
     pub fn on_client_connected(&self) {
         *self.client_connected.lock().unwrap() = true;
         info!("Plugin connected");
@@ -54,14 +53,12 @@ impl OverlayLifecycle {
         let _ = self.cmd_tx.send(OverlayCommand::Show);
     }
 
-    #[expect(dead_code)]
     pub fn on_client_disconnected(&self) {
         *self.client_connected.lock().unwrap() = false;
         info!("Plugin disconnected");
         self.schedule_hide(Duration::from_secs(5));
     }
 
-    #[expect(dead_code)]
     pub fn set_socket_ready(&self, ready: bool) {
         *self.socket_ready.lock().unwrap() = ready;
         if !ready {
@@ -71,13 +68,11 @@ impl OverlayLifecycle {
         }
     }
 
-    #[expect(dead_code)]
     fn show_overlay(&self) {
         self.cancel_hide_timeout();
         let _ = self.cmd_tx.send(OverlayCommand::Show);
     }
 
-    #[expect(dead_code)]
     fn schedule_hide(&self, delay: Duration) {
         self.cancel_hide_timeout();
         let lifecycle = self.clone();
@@ -93,15 +88,90 @@ impl OverlayLifecycle {
         *self.hide_timeout.lock().unwrap() = Some(source_id);
     }
 
-    #[expect(dead_code)]
     fn cancel_hide_timeout(&self) {
         if let Some(id) = self.hide_timeout.lock().unwrap().take() {
             id.remove();
         }
     }
 
-    #[expect(dead_code)]
+    #[allow(dead_code)]
     pub fn current_snapshot(&self) -> Option<Snapshot> {
         self.snapshot.lock().unwrap().clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_lifecycle() -> (
+        Arc<OverlayLifecycle>,
+        mpsc::UnboundedReceiver<OverlayCommand>,
+    ) {
+        let (tx, rx) = mpsc::unbounded_channel();
+        (OverlayLifecycle::new(tx), rx)
+    }
+
+    #[test]
+    fn on_client_connected_sets_flag_and_sends_show() {
+        let (lifecycle, mut rx) = make_lifecycle();
+        assert!(!*lifecycle.client_connected.lock().unwrap());
+
+        lifecycle.on_client_connected();
+
+        assert!(*lifecycle.client_connected.lock().unwrap());
+        assert!(matches!(rx.try_recv(), Ok(OverlayCommand::Show)));
+    }
+
+    #[test]
+    fn on_client_connected_can_be_called_repeatedly() {
+        let (lifecycle, mut rx) = make_lifecycle();
+
+        lifecycle.on_client_connected();
+        let _ = rx.try_recv(); // drain Show
+
+        lifecycle.on_client_connected();
+        assert!(*lifecycle.client_connected.lock().unwrap());
+        assert!(matches!(rx.try_recv(), Ok(OverlayCommand::Show)));
+    }
+
+    #[test]
+    fn set_socket_ready_true_sets_flag() {
+        let (lifecycle, mut rx) = make_lifecycle();
+        assert!(!*lifecycle.socket_ready.lock().unwrap());
+
+        lifecycle.set_socket_ready(true);
+
+        assert!(*lifecycle.socket_ready.lock().unwrap());
+        // No commands sent when becoming ready (just cancels timeout)
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn set_socket_ready_true_cancels_hide_timeout() {
+        let (lifecycle, _rx) = make_lifecycle();
+
+        // Set ready=true — no timeout should be pending
+        lifecycle.set_socket_ready(true);
+        assert!(lifecycle.hide_timeout.lock().unwrap().is_none());
+    }
+
+    #[test]
+    fn initial_state_all_false() {
+        let (lifecycle, _rx) = make_lifecycle();
+        assert!(!*lifecycle.client_connected.lock().unwrap());
+        assert!(!*lifecycle.socket_ready.lock().unwrap());
+        assert!(lifecycle.current_snapshot().is_none());
+    }
+
+    #[test]
+    fn lifecycle_sends_only_expected_commands() {
+        let (lifecycle, mut rx) = make_lifecycle();
+
+        lifecycle.on_client_connected();
+        assert!(matches!(rx.try_recv(), Ok(OverlayCommand::Show)));
+
+        // No other commands should be queued
+        assert!(rx.try_recv().is_err());
     }
 }
