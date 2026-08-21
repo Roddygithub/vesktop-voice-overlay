@@ -177,8 +177,8 @@ yay -S vesktop-voice-overlay
 | Niveau | Outils | Commandes |
 |--------|--------|-----------|
 | **Lint Plugin** | ESLint + @typescript-eslint | `npm run lint` |
-| **Typecheck Plugin** | TypeScript | `npm run typecheck` |
 | **Test Plugin** | Vitest | `npm test` |
+| **Vencord Integration** | pnpm build (pinned rev) | Clone Vencord → copy plugin → `pnpm build` |
 | **Lint Overlay** | Clippy + rustfmt | `cargo clippy -- -D warnings && cargo fmt --check` |
 | **Test Overlay** | cargo test | `cargo test` |
 | **Build Check** | cargo build --release | `cargo build --release --locked` |
@@ -190,7 +190,7 @@ yay -S vesktop-voice-overlay
 | Rust | 1.75+ | 1.79 | MSRV = 1.75 |
 | Node.js | 20 LTS | 20.15 | LTS actif |
 | GTK4 | 4.12+ | 4.14 | layer-shell stable |
-| Vencord | Latest | Nightly | API instable, pin manifest version |
+| Vencord | 1.15.2+ | Pinned `ef29bbeb` | Userplugin in `src/userplugins/` |
 | Vesktop | Latest | Stable | Electron 28+ |
 | Wayland Compositor | wlroots 0.17+ | Hyprland, sway, niri | layer-shell v1 |
 

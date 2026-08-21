@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::config::OverlaySettings;
+
 pub const PROTOCOL_VERSION: u8 = 1;
 pub const PROTOCOL_HEADER: &str = "VESKTOP_VOICE_OVERLAY/1.0\n";
 pub const MAX_PAYLOAD_SIZE: usize = 64 * 1024;
@@ -32,12 +34,22 @@ pub struct Participant {
     pub username: String,
     #[serde(rename = "avatarUrl")]
     pub avatar_url: String,
+    #[serde(default)]
+    pub mute: bool,
+    #[serde(default)]
+    pub deaf: bool,
     pub speaking: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub volume: Option<u8>,
 }
 
 pub type Snapshot = SnapshotV1;
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ClientMessage {
+    Settings { settings: OverlaySettings },
+}
 
 impl Snapshot {
     pub fn deserialize(line: &str) -> Option<Snapshot> {
@@ -54,6 +66,18 @@ impl Snapshot {
     #[allow(dead_code)]
     pub fn serialize(&self) -> String {
         serde_json::to_string(self).unwrap_or_default()
+    }
+}
+
+pub fn deserialize_client_message(line: &str) -> Option<ClientMessage> {
+    if line.len() > MAX_PAYLOAD_SIZE {
+        return None;
+    }
+
+    let message: ClientMessage = serde_json::from_str(line).ok()?;
+    match &message {
+        ClientMessage::Settings { settings } if settings.is_valid() => Some(message),
+        ClientMessage::Settings { .. } => None,
     }
 }
 
@@ -111,6 +135,8 @@ mod tests {
                 user_id: "456".into(),
                 username: "Friend".into(),
                 avatar_url: "".into(),
+                mute: false,
+                deaf: false,
                 speaking: false,
                 volume: Some(75),
             }],
@@ -126,5 +152,22 @@ mod tests {
         let large_json = "x".repeat(MAX_PAYLOAD_SIZE + 1);
         let result = Snapshot::deserialize(&large_json);
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_deserialize_valid_settings() {
+        let json = r#"{"type":"settings","settings":{"enabled":true,"position":"custom","custom_x":120,"custom_y":80,"user_display":"speaking_only","name_display":"always","avatar_size_mode":"small"}}"#;
+
+        assert!(matches!(
+            deserialize_client_message(json),
+            Some(ClientMessage::Settings { .. })
+        ));
+    }
+
+    #[test]
+    fn test_reject_invalid_settings_position() {
+        let json = r#"{"type":"settings","settings":{"enabled":true,"position":"somewhere","custom_x":0,"custom_y":0,"user_display":"speaking_only","name_display":"always","avatar_size_mode":"small"}}"#;
+
+        assert!(deserialize_client_message(json).is_none());
     }
 }

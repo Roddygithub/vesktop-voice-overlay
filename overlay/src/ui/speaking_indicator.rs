@@ -15,19 +15,15 @@ impl SpeakingIndicator {
         drawing_area.add_css_class("speaking-indicator");
 
         let speaking = Rc::new(Mutex::new(speaking));
+        if *speaking.lock().unwrap() {
+            drawing_area.add_css_class("active");
+        }
         let speaking_clone = speaking.clone();
-        let drawing_area_clone = drawing_area.clone();
 
         drawing_area.set_draw_func(move |_, cr, _, _| {
             let is_speaking = *speaking_clone.lock().unwrap();
-            if is_speaking {
-                drawing_area_clone.add_css_class("active");
-            } else {
-                drawing_area_clone.remove_css_class("active");
-            }
-
-            let width = drawing_area_clone.width() as f64;
-            let height = drawing_area_clone.height() as f64;
+            let width = 6.0_f64;
+            let height = 6.0_f64;
             let radius = width.min(height) / 2.0 - 1.0;
             let center_x = width / 2.0;
             let center_y = height / 2.0;
@@ -47,9 +43,13 @@ impl SpeakingIndicator {
         &self.drawing_area
     }
 
-    #[expect(dead_code)]
     pub fn set_speaking(&self, speaking: bool) {
         *self.speaking.lock().unwrap() = speaking;
+        if speaking {
+            self.drawing_area.add_css_class("active");
+        } else {
+            self.drawing_area.remove_css_class("active");
+        }
         self.drawing_area.queue_draw();
     }
 }

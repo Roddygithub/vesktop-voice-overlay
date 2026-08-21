@@ -7,7 +7,9 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 use crate::lifecycle::OverlayCommand;
-use crate::protocol::{Snapshot, MAX_PAYLOAD_SIZE, PROTOCOL_HEADER};
+use crate::protocol::{
+    deserialize_client_message, ClientMessage, Snapshot, MAX_PAYLOAD_SIZE, PROTOCOL_HEADER,
+};
 
 pub struct SocketServer {
     socket_path: String,
@@ -110,6 +112,7 @@ fn handle_connection(
     stream.write_all(PROTOCOL_HEADER.as_bytes())?;
     stream.flush()?;
 
+    info!("Socket client connected; dispatching ClientConnected");
     let _ = cmd_tx.send(OverlayCommand::ClientConnected);
 
     let mut reader = std::io::BufReader::new(stream);
@@ -134,7 +137,15 @@ fn handle_connection(
         }
 
         if let Some(snapshot) = Snapshot::deserialize(line) {
+            info!(
+                "Received snapshot with {} participants",
+                snapshot.participants.len()
+            );
             let _ = cmd_tx.send(OverlayCommand::UpdateSnapshot(snapshot));
+        } else if let Some(ClientMessage::Settings { settings }) = deserialize_client_message(line)
+        {
+            info!("Received overlay settings update");
+            let _ = cmd_tx.send(OverlayCommand::UpdateSettings(settings));
         } else {
             warn!("Failed to parse snapshot: {}", line);
         }

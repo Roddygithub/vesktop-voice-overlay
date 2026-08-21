@@ -9,6 +9,7 @@ on:
 env:
   RUST_VERSION: '1.97'
   NODE_VERSION: '20'
+  VENCORD_REV: 'ef29bbeb'
 
 jobs:
   lint-and-test:
@@ -76,10 +77,6 @@ jobs:
         working-directory: ./plugin
         run: npm ci
 
-      - name: Typecheck plugin
-        working-directory: ./plugin
-        run: npm run typecheck
-
       - name: Lint plugin
         working-directory: ./plugin
         run: npm run lint
@@ -88,9 +85,52 @@ jobs:
         working-directory: ./plugin
         run: npm test
 
-      - name: Build plugin
-        working-directory: ./plugin
-        run: npm run build
+  vencord-integration:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install pnpm
+        run: npm install -g pnpm@9
+
+      - name: Clone Vencord (pinned revision)
+        run: git clone --depth 1 https://github.com/Vendicated/Vencord.git /tmp/Vencord
+        working-directory: /tmp
+
+      - name: Checkout pinned Vencord revision
+        run: |
+          cd /tmp/Vencord
+          git fetch --depth 1 origin ${{ env.VENCORD_REV }}
+          git checkout ${{ env.VENCORD_REV }}
+
+      - name: Install plugin into Vencord userplugins
+        run: |
+          mkdir -p /tmp/Vencord/src/userplugins/vesktopVoiceOverlay
+          cp plugin/src/index.ts \
+             plugin/src/native.ts \
+             plugin/src/protocol.ts \
+             plugin/src/voiceState.ts \
+             plugin/src/snapshot.ts \
+             /tmp/Vencord/src/userplugins/vesktopVoiceOverlay/
+
+      - name: Install Vencord dependencies
+        run: pnpm install
+        working-directory: /tmp/Vencord
+
+      - name: Build Vencord
+        run: pnpm build
+        working-directory: /tmp/Vencord
+
+      - name: Verify plugin discovery
+        run: |
+          grep -q "VesktopVoiceOverlay" /tmp/Vencord/dist/vencordDesktopRenderer.js
+          grep -q "VesktopVoiceOverlay" /tmp/Vencord/dist/vencordDesktopMain.js
 
   build-release:
     needs: lint-and-test
@@ -150,37 +190,4 @@ jobs:
         with:
           name: vesktop-voice-overlay
           path: overlay/target/release/vesktop-voice-overlay
-          retention-days: 7
-
-  build-plugin:
-    needs: lint-and-test
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: plugin/package-lock.json
-
-      - name: Install plugin dependencies
-        working-directory: ./plugin
-        run: npm ci
-
-      - name: Build plugin
-        working-directory: ./plugin
-        run: npm run build
-
-      - name: Pack plugin
-        working-directory: ./plugin
-        run: npm pack
-
-      - name: Upload plugin package
-        uses: actions/upload-artifact@v4
-        with:
-          name: vesktop-voice-overlay-plugin
-          path: plugin/*.tgz
           retention-days: 7

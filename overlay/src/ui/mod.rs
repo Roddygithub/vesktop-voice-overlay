@@ -1,43 +1,41 @@
 mod avatar;
 mod participant_list;
-mod speaking_indicator;
 
 pub use avatar::AvatarWidget;
 pub use participant_list::ParticipantList;
-pub use speaking_indicator::SpeakingIndicator;
 
 use gtk4::prelude::*;
 use gtk4::{Box, Orientation, PolicyType, ScrolledWindow};
+use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::config::Config;
+use crate::config::{Config, OverlaySettings};
 use crate::protocol::Snapshot;
 
 pub struct OverlayUI {
     container: Box,
     participant_list: ParticipantList,
+    config: Rc<RefCell<Config>>,
+    last_snapshot: RefCell<Option<Snapshot>>,
     _scrolled: ScrolledWindow,
 }
 
 impl OverlayUI {
-    pub async fn new(
-        window: &gtk4::ApplicationWindow,
-        config: &Config,
-    ) -> anyhow::Result<Rc<Self>> {
-        let container = Box::new(Orientation::Vertical, 8);
-        container.set_margin_top(12);
-        container.set_margin_bottom(12);
-        container.set_margin_start(12);
-        container.set_margin_end(12);
+    pub fn new(window: &gtk4::ApplicationWindow, config: &Config) -> anyhow::Result<Rc<Self>> {
+        let container = Box::new(Orientation::Vertical, 0);
         container.add_css_class("overlay-container");
 
         let scrolled = ScrolledWindow::new();
         scrolled.set_policy(PolicyType::Never, PolicyType::Automatic);
-        scrolled.set_vexpand(true);
+        scrolled.set_vexpand(false);
         scrolled.set_hexpand(false);
+        scrolled.set_min_content_width(220);
+        scrolled.set_min_content_height(42);
+        scrolled.set_propagate_natural_height(true);
         scrolled.add_css_class("overlay-scrolled");
 
-        let participant_list = ParticipantList::new(config)?;
+        let config = Rc::new(RefCell::new(config.clone()));
+        let participant_list = ParticipantList::new(config.clone())?;
         scrolled.set_child(Some(participant_list.widget()));
 
         container.append(&scrolled);
@@ -47,6 +45,8 @@ impl OverlayUI {
         let ui = Rc::new(Self {
             container,
             participant_list,
+            config,
+            last_snapshot: RefCell::new(None),
             _scrolled: scrolled,
         });
 
@@ -55,8 +55,18 @@ impl OverlayUI {
         Ok(ui)
     }
 
-    pub fn update_from_snapshot(&self, snapshot: &Snapshot) {
-        self.participant_list.update(snapshot);
+    pub fn update_from_snapshot(&self, snapshot: &Snapshot) -> bool {
+        *self.last_snapshot.borrow_mut() = Some(snapshot.clone());
+        self.participant_list.update(snapshot)
+    }
+
+    pub fn update_settings(&self, settings: OverlaySettings) -> bool {
+        self.config.borrow_mut().apply_overlay_settings(settings);
+        self.participant_list.reset();
+        self.last_snapshot
+            .borrow()
+            .as_ref()
+            .is_some_and(|snapshot| self.participant_list.update(snapshot))
     }
 
     fn apply_css() {

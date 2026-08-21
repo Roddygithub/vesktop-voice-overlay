@@ -26,10 +26,25 @@ pub fn create_layer_shell_window(
         config.overlay.custom_y,
     );
     window.set_exclusive_zone(0);
-    window.set_default_size(300, 200);
+    window.set_default_size(240, 60);
     window.add_css_class("vesktop-voice-overlay");
 
     Ok(window)
+}
+
+pub fn update_position(
+    window: &gtk4::ApplicationWindow,
+    position: &str,
+    custom_x: i32,
+    custom_y: i32,
+) {
+    tracing::debug!(
+        "update_position called: position={}, custom_x={}, custom_y={}",
+        position,
+        custom_x,
+        custom_y
+    );
+    set_anchors(window, position, custom_x, custom_y);
 }
 
 fn set_anchors(window: &gtk4::ApplicationWindow, position: &str, custom_x: i32, custom_y: i32) {

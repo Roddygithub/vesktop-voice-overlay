@@ -114,13 +114,20 @@ position = "top-right"     # top-left, top-right, bottom-left, bottom-right, cen
 custom_x = 0
 custom_y = 0
 max_participants = 10
-avatar_size = 40
+avatar_size = 28
+user_display = "speaking_only"  # always, speaking_only
+name_display = "speaking_only"   # always, speaking_only, never
+avatar_size_mode = "small"       # small, large
 
 [appearance]
 theme = "auto"             # auto, light, dark
 speaking_pulse_ms = 1000
 show_names = true
 ```
+
+These Voice Widget options are also available in Vesktop under Vencord plugin
+settings. Changes apply immediately. Select `Custom coordinates` to use the
+horizontal and vertical offsets from the top-left of the active display.
 
 ## Usage
 
@@ -204,7 +211,7 @@ vesktop-voice-overlay/
 ```bash
 # Local validation
 cd overlay && cargo fmt --check && cargo clippy -- -D warnings && cargo test
-cd ../plugin && npm run typecheck && npm run lint && npm test
+cd ../plugin && npm run lint && npm test
 ```
 
 ### Socket Protocol v1

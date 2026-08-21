@@ -9,7 +9,7 @@
 │  │  Renderer Process (WebView)                                         │   │
 │  │  ┌─────────────────────────────────────────────────────────────┐   │   │
 │  │  │  Vencord Plugin (TypeScript)                                │   │   │
-│  │  │  - Accède au voice state interne (useVoiceState, etc.)     │   │   │
+│  │  │  - Accède aux stores voice internes (VoiceStateStore/UserStore) │   │
 │  │  │  - Sérialise snapshots versionnés (JSON)                   │   │   │
 │  │  │  - Envoie via Unix socket (credentials passing)            │   │   │
 │  │  │  - Gère reconnexion auto                                    │   │   │
@@ -17,7 +17,7 @@
 │  └─────────────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
-                    Unix Socket (SCM_RIGHTS, user-only)
+                     Unix Socket (SO_PEERCRED, user-only)
                     $XDG_RUNTIME_DIR/vesktop-voice-overlay.sock
                                       │
                                       ▼
@@ -34,27 +34,50 @@
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
+## Runtime Threading Constraint
+
+The socket accept loop uses blocking Unix I/O and must run outside GTK's main
+context. It dispatches validated commands through the channel consumed by the
+GTK event loop; `ClientConnected`, `UpdateSnapshot`, and lifecycle visibility
+changes must therefore remain GTK-thread operations.
+
+Avatar network I/O is an exception to GTK-thread work: HTTP fetches run on a
+Tokio-backed worker, while decoded textures and widget updates return to the
+GTK context.
+
+The Voice Widget uses a transparent layer-shell window and scrolled viewport;
+each visible participant owns its compact translucent row. This prevents GTK
+theme backgrounds from producing a second opaque card around the widget.
+
+Discord avatars are decoded as RGBA and passed directly to GdkPixbuf. Avoiding
+the Cairo ARGB32 intermediate prevents channel-order swaps on little-endian
+systems.
+
+Vencord persists Voice Widget preferences and sends a separate `type:
+"settings"` message through the same-user Unix socket. The overlay applies
+only display modes and layer-shell position values from this message; versioned
+voice snapshots remain authoritative participant data.
+
 ## 2. Composants Détaillés
 
 ### 2.1 Vencord Plugin (`plugin/`)
 
 **Responsabilités** :
-- Accès au voice state interne Vesktop via API Vencord (`useVoiceState`, `useCurrentUser`, etc.)
+- Accès aux stores voice internes Vesktop (`VoiceStateStore`, `UserStore`)
 - Détection changements : join/leave/mute/deaf/speaking
 - Sérialisation snapshots versionnés (JSON) avec timestamp + version protocole
-- Envoi via Unix socket avec `SCM_RIGHTS` (file descriptor passing pour sécurité)
+- Envoi via Unix socket user-only, validé par `SO_PEERCRED`
 - Gestion reconnexion : exponential backoff, max 5 tentatives, puis pause
 - Cycle de vie : se connecte au démarrage Vesktop, nettoie socket à l'arrêt
 
 **Architecture Interne** :
 ```
 plugin/src/
-├── index.ts              # Entry point Vencord
-├── socket.ts             # Unix socket client (connect, send, reconnect)
-├── protocol.ts           # Types TypeScript + serialization (v1, v2...)
-├── voiceState.ts         # Wrapper API Vencord voice state
-├── snapshot.ts           # Création snapshots (participants, speaking, self)
-└── manifest.json         # Vencord manifest (name, version, description, author)
+├── index.ts              # Entry point Vencord (definePlugin, flux events)
+├── native.ts             # Electron IPC native module (IpcMainInvokeEvent)
+├── protocol.ts           # Types TypeScript + serialization (v1)
+├── voiceState.ts         # Vencord stores (VoiceStateStore, UserStore) + speaking set
+└── snapshot.ts           # Création snapshots (participants, speaking, self)
 ```
 
 **Protocole Socket (v1)** :
@@ -115,7 +138,10 @@ position = "top-right"      # top-left, top-right, bottom-left, bottom-right, ce
 custom_x = 0
 custom_y = 0
 max_participants = 10
-avatar_size = 40
+avatar_size = 28
+user_display = "speaking_only"
+name_display = "speaking_only"
+avatar_size_mode = "small"
 
 [appearance]
 theme = "auto"              # auto, light, dark
@@ -143,11 +169,15 @@ path = "/run/user/1000/vesktop-voice-overlay.sock"  # ou $XDG_RUNTIME_DIR
 ### Monorepo Source (GitHub)
 ```
 vesktop-voice-overlay/
-├── plugin/                    # Vencord plugin (npm package)
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── src/
-│   └── manifest.json          # Vencord manifest
+├── plugin/                    # Vencord userplugin (source, not npm package)
+│   ├── package.json           # Dev deps (vitest, eslint) only
+│   ├── tsconfig.json          # Local IDE, not authoritative
+│   └── src/
+│       ├── index.ts           # definePlugin entry, flux events
+│       ├── native.ts          # Electron IPC native module
+│       ├── protocol.ts        # Shared protocol types
+│       ├── voiceState.ts      # Vencord stores adapter
+│       └── snapshot.ts        # Snapshot builder
 ├── overlay/                   # Rust crate (cargo package)
 │   ├── Cargo.toml
 │   ├── src/
@@ -158,12 +188,19 @@ vesktop-voice-overlay/
 │       ├── vesktop-voice-overlay.install
 │       └── .SRCINFO
 ├── .github/workflows/
-│   ├── ci.yml                 # Tests, lint, build
+│   ├── ci.yml                 # Tests, lint, Vencord-integrated build
 │   └── release.yml            # Tag push → build + release assets
 ├── README.md
 ├── LICENSE (GPL-3.0)
 └── AGENTS.md
 ```
+
+> **Plugin is a Vencord source userplugin**, not a standalone npm package.
+> For CI, plugin files are copied into Vencord's `src/userplugins/vesktopVoiceOverlay/`
+> and built via `pnpm build` within the Vencord source tree.
+> Symlinks do not work because esbuild resolves `@utils/*`/`@webpack` relative to the
+> real file path, not the symlink path.
+> Vencord compatibility baseline: pinned revision `ef29bbeb` (v1.15.2).
 
 ### Distribution Séparée (Utilisateur Final)
 
@@ -192,63 +229,30 @@ vesktop-voice-overlay/
               └───────────────────────┘
 ```
 
-### CI/CD Pipeline (`.github/workflows/release.yml`)
+### CI/CD Pipeline (`.github/workflows/ci.yml`)
 
 ```yaml
-on:
-  push:
-    tags: ['v*']
+# Vencord compatibility baseline
+VENCORD_REV: 'ef29bbeb'
 
 jobs:
-  build-overlay:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-      - name: Build overlay
-        run: cargo build --release --manifest-path overlay/Cargo.toml
-      - name: Upload binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: overlay-binary
-          path: overlay/target/release/vesktop-voice-overlay
+  lint-and-test:
+    # Rust fmt, clippy, build, test + Plugin lint, vitest
+    # Standalone typecheck removed (Vencord modules not resolvable)
 
-  build-plugin:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '20' }
-      - run: cd plugin && npm ci && npm pack
-      - name: Upload plugin
-        uses: actions/upload-artifact@v4
-        with:
-          name: plugin-package
-          path: plugin/*.tgz
+  vencord-integration:
+    needs: lint-and-test
+    # Clones pinned Vencord, copies plugin, runs pnpm build
+    # Fails if plugin is incompatible with pinned Vencord revision
 
-  create-release:
-    needs: [build-overlay, build-plugin]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            vesktop-voice-overlay
-            vesktop-voice-overlay-plugin-*.tgz
-          generate_release_notes: true
-
-  publish-aur:
-    needs: create-release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Update AUR PKGBUILD
-        # Update pkgver, sha256sums from release assets
-        # Push to AUR git repo (aur.archlinux.org/vesktop-voice-overlay.git)
+  build-release:
+    # Only on push to main: cargo build --release
 ```
+
+> **Standalone typecheck is not authoritative.** The plugin imports Vencord-internal
+> modules (`@utils/*`, `@webpack`) that only resolve within Vencord's esbuild build.
+> The `vencord-integration` job is the external compatibility gate.
+> To update the Vencord baseline, change `VENCORD_REV` in `ci.yml` and validate locally.
 
 ## 4. Sécurité & Sandbox
 
@@ -265,9 +269,9 @@ jobs:
 
 | Niveau | Outils | Couverture |
 |--------|--------|------------|
-| **Unit (Plugin)** | Vitest + @types/vencord | Protocol serialization, socket logic, voice state mapping |
-| **Unit (Overlay)** | cargo test + gtk4-test | Socket server, deserialization, UI widgets |
-| **Integration** | Script E2E (Vesktop headless + overlay) | Full flow: join voice → overlay appears → speak → indicator |
+| **Unit (Plugin)** | Vitest | Protocol serialization |
+| **Unit (Overlay)** | cargo test | Socket server, deserialization, lifecycle |
+| **Vencord Integration** | `pnpm build` in pinned Vencord source | Plugin discovery, native IPC, flux events, full build |
 | **Compatibilité** | Matrix: Hyprland, sway, niri, labwc | Layer-shell behavior, click-through, fullscreen games |
 
 ## 6. Évolutions Futures (Post-v1)

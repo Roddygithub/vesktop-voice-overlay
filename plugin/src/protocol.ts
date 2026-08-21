@@ -18,6 +18,8 @@ export interface Participant {
   userId: string;
   username: string;
   avatarUrl: string;
+  mute?: boolean;
+  deaf?: boolean;
   speaking: boolean;
   volume?: number;
 }
@@ -41,9 +43,4 @@ export function deserializeSnapshot(line: string): Snapshot | null {
   } catch {
     return null;
   }
-}
-
-export function getSocketPath(): string {
-  const runtimeDir = process.env.XDG_RUNTIME_DIR || `/tmp/vesktop-voice-overlay-${(process as any).getuid?.() || 1000}`;
-  return `${runtimeDir}/vesktop-voice-overlay.sock`;
 }

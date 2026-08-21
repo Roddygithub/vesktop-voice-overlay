@@ -1,73 +1,115 @@
-import { VoiceState, VoiceMember, CurrentUser, VencordAPI, UseVoiceState, UseCurrentUser } from './vencord/api';
+import { findStoreLazy, findByPropsLazy } from "@webpack";
+import { Snapshot, ParticipantSelf, Participant } from "./protocol";
 
-// Re-export types for compatibility
-export type { VoiceState, VoiceMember, CurrentUser };
+const VoiceStateStore = findStoreLazy("VoiceStateStore");
+const UserStore = findByPropsLazy("getUser", "getCurrentUser");
 
-// Vencord API access - these will be injected at runtime by Vencord
-let vencordApi: VencordAPI | null = null;
-
-export function setVencordApi(api: VencordAPI) {
-  vencordApi = api;
+function getUser(userId: string) {
+    try {
+        return UserStore.getUser(userId);
+    } catch {
+        return null;
+    }
 }
 
-export function getVencordApi(): VencordAPI | null {
-  return vencordApi;
+function getAvatarUrl(userId: string, avatar: string | null): string {
+    if (avatar) {
+        const ext = avatar.startsWith("a_") ? "gif" : "png";
+        return `https://cdn.discordapp.com/avatars/${userId}/${avatar}.${ext}?size=128`;
+    }
+    return "";
 }
 
-// Hook: useVoiceState - returns current voice state
-export const useVoiceState: UseVoiceState = () => {
-  if (!vencordApi) return null;
-  const store = vencordApi.getVoiceStateStore();
-  return store?.getVoiceState() ?? null;
-};
+const speakingUsers = new Set<string>();
 
-// Hook: useCurrentUser - returns current user info
-export const useCurrentUser: UseCurrentUser = () => {
-  if (!vencordApi) return null;
-  return vencordApi.getCurrentUser();
-};
-
-// Subscribe to voice state changes
-export function subscribeToVoiceStateChanges(callback: (state: VoiceState) => void): () => void {
-  if (!vencordApi) return () => {};
-  const store = vencordApi.getVoiceStateStore();
-  if (!store) return () => {};
-  return store.subscribe(callback);
+export function setSpeaking(userId: string, speaking: boolean) {
+    if (speaking) {
+        speakingUsers.add(userId);
+    } else {
+        speakingUsers.delete(userId);
+    }
+    console.info("[VVO] speaking set updated", {
+        speaking,
+        tracked: speakingUsers.has(userId),
+    });
 }
 
-// Get voice channel members as array
-export function getVoiceChannelMembers(voiceState: VoiceState): VoiceMember[] {
-  if (!voiceState) return [];
-  return Array.from(voiceState.members.values());
+export function clearSpeaking() {
+    speakingUsers.clear();
 }
 
-// Extract self member from voice state
-export function getSelfMember(voiceState: VoiceState, currentUserId: string): VoiceMember | undefined {
-  return voiceState.members.get(currentUserId);
+export function getCurrentUser() {
+    try {
+        return UserStore.getCurrentUser();
+    } catch {
+        return null;
+    }
 }
 
-// Check if user is in a voice channel
-export function isInVoiceChannel(voiceState: VoiceState | null): boolean {
-  return voiceState !== null && voiceState.channelId !== null;
+export function isInVoiceChannel(): boolean {
+    try {
+        return VoiceStateStore.isCurrentClientInVoiceChannel();
+    } catch {
+        return false;
+    }
 }
 
-// Check if user is speaking
-export function isSpeaking(voiceState: VoiceState | null): boolean {
-  return voiceState?.speaking === true;
+export function getCurrentVoiceChannelId(): string | null {
+    try {
+        const currentUser = getCurrentUser();
+        if (!currentUser) return null;
+        return VoiceStateStore.getVoiceStateForUser(currentUser.id)?.channelId ?? null;
+    } catch {
+        return null;
+    }
 }
 
-// Check if user is muted
-export function isMuted(voiceState: VoiceState | null): boolean {
-  return voiceState?.selfMute === true;
-}
+export function getChannelSnapshot(): Snapshot | null {
+    const currentUser = getCurrentUser();
+    if (!currentUser) return null;
 
-// Check if user is deafened
-export function isDeafened(voiceState: VoiceState | null): boolean {
-  return voiceState?.selfDeaf === true;
-}
+    const channelId = getCurrentVoiceChannelId();
+    if (!channelId) return null;
 
-// Get member count in voice channel
-export function getMemberCount(voiceState: VoiceState | null): number {
-  if (!voiceState) return 0;
-  return voiceState.members.size;
+    const voiceStates: Record<string, any> = VoiceStateStore.getVoiceStatesForChannel(channelId);
+    if (!voiceStates || Object.keys(voiceStates).length === 0) return null;
+
+    const selfVoiceState = voiceStates[currentUser.id];
+    if (!selfVoiceState) return null;
+
+    const participants: Participant[] = [];
+
+    for (const userId of Object.keys(voiceStates)) {
+        if (userId === currentUser.id) continue;
+
+        const userVoiceState = voiceStates[userId];
+        const user = getUser(userId);
+        const username = user?.globalName ?? user?.username ?? "Unknown";
+        const avatar = user?.avatar ?? null;
+
+        participants.push({
+            userId,
+            username,
+            avatarUrl: getAvatarUrl(userId, avatar),
+            mute: userVoiceState.selfMute || userVoiceState.mute,
+            deaf: userVoiceState.selfDeaf || userVoiceState.deaf,
+            speaking: speakingUsers.has(userId),
+        });
+    }
+
+    const self: ParticipantSelf = {
+        userId: currentUser.id,
+        username: currentUser.globalName ?? currentUser.username,
+        avatarUrl: getAvatarUrl(currentUser.id, currentUser.avatar),
+        mute: selfVoiceState.selfMute || selfVoiceState.mute,
+        deaf: selfVoiceState.selfDeaf || selfVoiceState.deaf,
+        speaking: speakingUsers.has(currentUser.id),
+    };
+
+    return {
+        version: 1,
+        timestamp: Date.now(),
+        self,
+        participants,
+    };
 }

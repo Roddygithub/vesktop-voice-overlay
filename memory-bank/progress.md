@@ -103,6 +103,136 @@ FALLBACK: NOT AVAILABLE
 - `AGENTS.md` : références aux scripts supprimées
 - `CONTRIBUTING.md` : workflow post-release reflété
 
+## ✅ Runtime Integration Checkpoint — 2026-08-21
+
+- Root cause Vencord runtime overwrite confirmed: Vesktop 1.6.7 requires
+  `dist/package.json` before accepting a custom `vencordDir`; without it,
+  managed release files overwrite the custom build.
+- Custom Vencord build preserved with `dist/package.json` marker.
+- Runtime registry: `VesktopVoiceOverlay` discovered, enabled, and started.
+- Native helper: `VencordNative.pluginHelpers.VesktopVoiceOverlay` present.
+- Overlay socket: connection accepted with current-user UID.
+- Remaining gate: join a real voice channel and speak to validate snapshots and
+  speaking transitions.
+
+## ✅ Runtime Data-Path Diagnosis — 2026-08-21
+
+- First failing boundary identified: the blocking Unix socket accept loop was
+  scheduled on GTK's main context, preventing lifecycle commands from being
+  consumed.
+- Fixed by running the socket server on a dedicated Tokio-backed thread.
+- Fixed deferred GTK window creation during activation, which caused startup
+  criticals and premature process exit during restart.
+- Fixed empty-avatar rendering panic and corrected derived config defaults that
+  produced a zero avatar size when no config file existed.
+- Synthetic snapshot evidence now reaches `ClientConnected`, `Show`, snapshot
+  deserialization, and UI update without panic.
+- Remaining gate: repeat the real voice-channel visual test with the rebuilt
+  overlay and verify speaking transitions.
+
+## ✅ Runtime Content Diagnosis — 2026-08-21
+
+- Direct store inspection found `isCurrentClientInVoiceChannel() === true`,
+  while `getUserVoiceChannelId(null, userId)` returned `undefined`.
+- The current user's voice state was present in `getAllVoiceStates()` with a
+  valid channel ID; lookup now uses `getVoiceStateForUser(userId).channelId`.
+- Rust received a real snapshot containing the self member and applied it to
+  GTK. The initial disappearance was then traced to avatar HTTP fetches using
+  reqwest from a GLib future without a Tokio reactor.
+- Avatar fetches now run on a Tokio-backed worker and return bytes to GTK;
+  reconnect timeout bookkeeping was also fixed to avoid removing fired GLib
+  sources.
+- Temporary payload logging was removed after confirming the live payload.
+- Remaining gate: visual retest with the repaired overlay.
+
+## ✅ Compact UI Stabilization — 2026-08-21
+
+- Speaking snapshots no longer remove and recreate every `ListBoxRow`.
+- Participant rows are keyed by user ID and retain their avatar, label, and
+  speaking indicator widgets across snapshot updates.
+- Speaking updates now change existing widget state and CSS classes only.
+- Replaced the oversized default card with a compact stacked horizontal layout:
+  28px avatars, constrained width, low-opacity background, and row-level
+  speaking highlight.
+- Removed CSS mutation from the drawing callback and eliminated invalid GTK
+  width/height CSS properties.
+- Remaining gate: human visual retest for compact sizing and no speaking flicker.
+
+## ✅ GTK Allocation Correction — 2026-08-21
+
+- Allocation diagnostics measured a single row at 42px natural height, with a
+  36px horizontal content box, 28px avatar, and 16px label.
+- The scroller had no minimum content height or natural-height propagation,
+  while the layer-shell window used an unset `-1` default height. Explicit
+  42px scroller minimum, natural-height propagation, and a 240x60 initial
+  window allocation now preserve the natural row height.
+- Speaking state remains an in-place update and adds a subtle avatar ring and
+  row highlight instead of a vertical meter.
+- Clean rebuilt overlay restarted successfully; final human visual retest is
+  still required.
+
+## ✅ Discord Voice Widget Modes — 2026-08-21
+
+- Studied the official Discord Game Overlay 101 reference. Defaults now match
+  speaking-only behavior: no visible row while idle and a compact row on active
+  speech.
+- Added configurable `user_display` (`always`/`speaking_only`),
+  `name_display` (`always`/`speaking_only`/`never`), and
+  `avatar_size_mode` (`small`/`large`).
+- Added optional mute/deafen fields to participant snapshots and compact status
+  indicators near each name.
+- The existing Unix socket and native IPC remain unchanged; rows remain keyed
+  and updated in place.
+- Remaining gate: human screenshot comparison against the official reference.
+
+## ✅ Voice Widget Rendering Pass — 2026-08-21
+
+- Retained Discord voice-widget display modes and stable keyed participant rows.
+- Replaced the full-card treatment with lightweight per-user translucent rows.
+- Speaking state is now represented by the avatar ring only; mute/deaf states
+  use GTK symbolic icons beside the name.
+- The overlay remains a Wayland layer-shell surface above games and does not
+  inject or hook into game processes.
+- Remaining gate: human comparison screenshot while speaking.
+
+## ✅ Avatar Allocation Correction — 2026-08-21
+
+- The large clipped avatar was caused by `GtkPicture::can_shrink(false)`: once
+  a 128px Discord texture loaded, it retained that natural size inside the
+  compact layer-shell allocation.
+- Avatars can now shrink to their configured allocation and are aligned within
+  the compact row.
+- Removed the self-marker label whose unconstrained themed background rendered
+  as the narrow blue pill seen in the runtime screenshot.
+- Rust format, clippy, tests, and release build pass; human visual confirmation
+  is still required.
+
+## ✅ Voice Widget Surface Cleanup — 2026-08-21
+
+- Made the GTK window, scrolled viewport, and list transparent so only each
+  participant row owns a lightweight translucent background.
+- Tightened participant-row spacing and contrast without changing speaking,
+  lifecycle, or IPC behavior.
+- Rust format, clippy, tests, and release build pass; overlay restarted for
+  visual comparison.
+
+## ✅ Avatar Color and Capsule Layout — 2026-08-21
+
+- Removed the Cairo BGRA-to-RGBA mismatch that swapped avatar color channels.
+- Moved the dark rounded background from the full participant row to the name
+  label, yielding the avatar-plus-name-capsule structure of Discord's widget.
+- Rust format, clippy, tests, and release build pass; overlay restarted for a
+  final visual comparison.
+
+## ✅ Vencord Voice Widget Settings — 2026-08-21
+
+- Added Vencord controls for enablement, user/name display modes, avatar size,
+  corner position, and custom X/Y coordinates.
+- Preferences are sent through the existing same-user Unix socket and apply in
+  GTK immediately; no additional Discord data enters the protocol.
+- Runtime startup confirmed receipt of the settings update. Rust formatting,
+  clippy, tests, release build, plugin lint/tests, and Vencord build pass.
+
 ---
 
 *Projet livré — v1.0.0 — 2026-08-16*

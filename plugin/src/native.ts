@@ -1,129 +1,129 @@
-import net from 'net';
-import { PROTOCOL_HEADER, serializeSnapshot, deserializeSnapshot, Snapshot } from './protocol';
+import { IpcMainInvokeEvent } from "electron";
+import net from "node:net";
 
-export interface NativeSocketClient {
-  send: (snapshot: Snapshot) => void;
-  disconnect: () => void;
-}
-
-type OnConnectCallback = (sendSnapshot: (snapshot: Snapshot) => void) => void;
-
-let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const BASE_RECONNECT_DELAY = 1000;
 const MAX_RECONNECT_DELAY = 30000;
 
-export function startNativeSocketClient(socketPath: string, onConnect: OnConnectCallback): NativeSocketClient {
-  let socket: net.Socket | null = null;
-  let isConnected = false;
-  const sendQueue: Snapshot[] = [];
+type SocketClient = {
+    send: (data: string) => void;
+    disconnect: () => void;
+};
 
-  function connect() {
-    const newSocket = net.createConnection(socketPath);
-    socket = newSocket;
+let activeClient: SocketClient | null = null;
 
-    newSocket.on('connect', () => {
-      console.log('[Vesktop Voice Overlay] Connected to overlay socket');
-      isConnected = true;
-      reconnectAttempts = 0;
-      
-      let headerBuffer = '';
-      const onData = (data: Buffer) => {
-        headerBuffer += data.toString();
-        if (headerBuffer.includes('\n')) {
-          const header = headerBuffer.trim();
-          if (header === `VESKTOP_VOICE_OVERLAY/1.0`) {
-            console.log('[Vesktop Voice Overlay] Protocol version validated');
-            newSocket.off('data', onData);
-            setupDataHandler(newSocket);
-            onConnect(sendSnapshot);
-            flushQueue();
-          } else {
-            console.error('[Vesktop Voice Overlay] Invalid protocol header:', header);
-            newSocket.destroy();
-          }
+export function getSocketPath(_: IpcMainInvokeEvent): string {
+    const runtimeDir = process.env.XDG_RUNTIME_DIR || `/tmp/vesktop-voice-overlay-${process.getuid()}`;
+    return `${runtimeDir}/vesktop-voice-overlay.sock`;
+}
+
+export function startSocket(
+    _: IpcMainInvokeEvent,
+    socketPath: string
+): void {
+    activeClient?.disconnect();
+
+    let socket: net.Socket | null = null;
+    let isConnected = false;
+    let reconnectAttempts = 0;
+    let reconnectTimer: NodeJS.Timeout | null = null;
+    let stopped = false;
+    const sendQueue: string[] = [];
+
+    function connect() {
+        if (stopped) return;
+
+        const newSocket = net.createConnection(socketPath);
+        socket = newSocket;
+
+        newSocket.on("connect", () => {
+            isConnected = true;
+            reconnectAttempts = 0;
+
+            let headerBuffer = "";
+            const onData = (data: Buffer) => {
+                headerBuffer += data.toString();
+                if (headerBuffer.includes("\n")) {
+                    const header = headerBuffer.trim();
+                    if (header === "VESKTOP_VOICE_OVERLAY/1.0") {
+                        newSocket.off("data", onData);
+                        newSocket.on("data", () => {});
+                        flushQueue();
+                    } else {
+                        console.error("[Vesktop Voice Overlay] Invalid protocol header:", header);
+                        newSocket.destroy();
+                    }
+                }
+            };
+            newSocket.on("data", onData);
+        });
+
+        newSocket.on("error", (err: Error) => {
+            console.error("[Vesktop Voice Overlay] Socket error:", err.message);
+            scheduleReconnect();
+        });
+
+        newSocket.on("close", () => {
+            isConnected = false;
+            scheduleReconnect();
+        });
+    }
+
+    function send(line: string) {
+        if (isConnected && socket?.writable) {
+            socket.write(line + "\n");
+        } else {
+            sendQueue.push(line);
+            if (sendQueue.length > 100) {
+                sendQueue.shift();
+            }
         }
-      };
-      newSocket.on('data', onData);
-    });
+    }
 
-    newSocket.on('error', (err: Error) => {
-      console.error('[Vesktop Voice Overlay] Socket error:', err.message);
-      scheduleReconnect();
-    });
-
-    newSocket.on('close', () => {
-      console.log('[Vesktop Voice Overlay] Socket closed');
-      isConnected = false;
-      scheduleReconnect();
-    });
-  }
-
-  function setupDataHandler(sock: net.Socket) {
-    let buffer = '';
-    sock.on('data', (data: Buffer) => {
-      buffer += data.toString();
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-      
-      for (const line of lines) {
-        if (line.trim()) {
-          const snapshot = deserializeSnapshot(line);
-          if (snapshot) {
-            console.log('[Vesktop Voice Overlay] Received:', snapshot);
-          }
+    function flushQueue() {
+        while (sendQueue.length > 0 && isConnected && socket?.writable) {
+            const line = sendQueue.shift()!;
+            socket.write(line + "\n");
         }
-      }
-    });
-  }
-
-  function sendSnapshot(snapshot: Snapshot) {
-    const line = serializeSnapshot(snapshot) + '\n';
-    if (isConnected && socket?.writable) {
-      socket.write(line);
-    } else {
-      sendQueue.push(snapshot);
-      if (sendQueue.length > 100) {
-        sendQueue.shift();
-      }
     }
-  }
 
-  function flushQueue() {
-    while (sendQueue.length > 0 && isConnected && socket?.writable) {
-      const snapshot = sendQueue.shift()!;
-      sendSnapshot(snapshot);
+    function scheduleReconnect() {
+        if (stopped || reconnectTimer) return;
+
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            reconnectTimer = setTimeout(() => {
+                reconnectTimer = null;
+                reconnectAttempts = 0;
+                connect();
+            }, MAX_RECONNECT_DELAY);
+        } else {
+            const delay = BASE_RECONNECT_DELAY * Math.pow(2, reconnectAttempts);
+            reconnectTimer = setTimeout(() => {
+                reconnectTimer = null;
+                reconnectAttempts++;
+                connect();
+            }, delay);
+        }
     }
-  }
 
-  function scheduleReconnect() {
-    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      const delay = MAX_RECONNECT_DELAY;
-      console.log(`[Vesktop Voice Overlay] Max retries reached, waiting ${delay}ms before retry`);
-      setTimeout(() => {
-        reconnectAttempts = 0;
-        connect();
-      }, delay);
-    } else {
-      const delay = BASE_RECONNECT_DELAY * Math.pow(2, reconnectAttempts);
-      console.log(`[Vesktop Voice Overlay] Reconnecting in ${delay}ms (attempt ${reconnectAttempts + 1})`);
-      setTimeout(() => {
-        reconnectAttempts++;
-        connect();
-      }, delay);
+    function disconnect() {
+        stopped = true;
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+        socket?.destroy();
+        socket = null;
+        isConnected = false;
     }
-  }
 
-  function disconnect() {
-    socket?.destroy();
-    socket = null;
-    isConnected = false;
-  }
+    connect();
+    activeClient = { send, disconnect };
+}
 
-  connect();
+export function send(_: IpcMainInvokeEvent, data: string): void {
+    activeClient?.send(data);
+}
 
-  return {
-    send: sendSnapshot,
-    disconnect
-  };
+export function disconnect(_: IpcMainInvokeEvent): void {
+    activeClient?.disconnect();
+    activeClient = null;
 }

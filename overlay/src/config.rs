@@ -16,8 +16,35 @@ pub struct Config {
     pub socket: SocketConfig,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum UserDisplayMode {
+    Always,
+    #[default]
+    SpeakingOnly,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum NameDisplayMode {
+    Always,
+    #[default]
+    SpeakingOnly,
+    Never,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AvatarSizeMode {
+    #[default]
+    Small,
+    Large,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OverlayConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
     #[serde(default = "default_position")]
     pub position: String,
     #[serde(default)]
@@ -28,9 +55,52 @@ pub struct OverlayConfig {
     pub max_participants: usize,
     #[serde(default = "default_avatar_size")]
     pub avatar_size: i32,
+    #[serde(default)]
+    pub user_display: UserDisplayMode,
+    #[serde(default)]
+    pub name_display: NameDisplayMode,
+    #[serde(default)]
+    pub avatar_size_mode: AvatarSizeMode,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OverlaySettings {
+    pub enabled: bool,
+    pub position: String,
+    pub custom_x: i32,
+    pub custom_y: i32,
+    pub user_display: UserDisplayMode,
+    pub name_display: NameDisplayMode,
+    pub avatar_size_mode: AvatarSizeMode,
+}
+
+impl OverlaySettings {
+    pub fn is_valid(&self) -> bool {
+        matches!(
+            self.position.as_str(),
+            "top-left" | "top-right" | "bottom-left" | "bottom-right" | "center" | "custom"
+        ) && (-32_768..=32_768).contains(&self.custom_x)
+            && (-32_768..=32_768).contains(&self.custom_y)
+    }
+}
+
+impl Default for OverlayConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_true(),
+            position: default_position(),
+            custom_x: 0,
+            custom_y: 0,
+            max_participants: default_max_participants(),
+            avatar_size: default_avatar_size(),
+            user_display: UserDisplayMode::default(),
+            name_display: NameDisplayMode::default(),
+            avatar_size_mode: AvatarSizeMode::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppearanceConfig {
     #[serde(default = "default_theme")]
     pub theme: String,
@@ -38,6 +108,16 @@ pub struct AppearanceConfig {
     pub speaking_pulse_ms: u64,
     #[serde(default = "default_true")]
     pub show_names: bool,
+}
+
+impl Default for AppearanceConfig {
+    fn default() -> Self {
+        Self {
+            theme: default_theme(),
+            speaking_pulse_ms: default_pulse_ms(),
+            show_names: default_true(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,7 +141,7 @@ fn default_max_participants() -> usize {
     10
 }
 fn default_avatar_size() -> i32 {
-    40
+    28
 }
 fn default_theme() -> String {
     "auto".into()
@@ -106,5 +186,22 @@ impl Config {
 
     pub fn socket_path(&self) -> &str {
         &self.socket.path
+    }
+
+    pub fn apply_overlay_settings(&mut self, settings: OverlaySettings) {
+        self.overlay.enabled = settings.enabled;
+        self.overlay.position = settings.position;
+        self.overlay.custom_x = settings.custom_x;
+        self.overlay.custom_y = settings.custom_y;
+        self.overlay.user_display = settings.user_display;
+        self.overlay.name_display = settings.name_display;
+        self.overlay.avatar_size_mode = settings.avatar_size_mode;
+    }
+
+    pub fn avatar_size_px(&self) -> i32 {
+        match self.overlay.avatar_size_mode {
+            AvatarSizeMode::Small => 28,
+            AvatarSizeMode::Large => 40,
+        }
     }
 }

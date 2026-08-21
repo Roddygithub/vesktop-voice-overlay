@@ -17,8 +17,12 @@ implementation.
 
 ```bash
 cd plugin && npm ci
-npm run typecheck && npm run lint && npm test
+npm run lint && npm test
 ```
+
+> **Note**: Standalone `tsc` typecheck is not authoritative — the plugin imports
+> Vencord-internal modules that only resolve within Vencord's build system.
+> CI validates plugin compatibility via `vencord-integration` job.
 
 ### Overlay (Rust)
 

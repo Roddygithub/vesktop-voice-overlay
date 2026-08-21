@@ -23,6 +23,19 @@ access to Discord data and avoiding changes to the game process.
 - Restrict local IPC to the current user and validate all payloads and sizes.
 - Do not commit credentials, captured voice data, avatars, or personal logs.
 
+## Process Safety
+
+- Never use `pgrep -f` or `pkill -f` — full command-line matching risks killing
+  unrelated processes (e.g., Herdr, OpenCode, shell sessions) that happen to
+  contain the project name in their arguments.
+- Prefer exact process-name matching (`pgrep -x`) when the binary name is unique.
+- If the binary name is ambiguous, inspect `ps` output first and kill only the
+  confirmed PID.
+- Before any destructive process command (`kill`, `pkill`, `killall`), print the
+  matching process list first so the operator can confirm.
+- Never kill Herdr, OpenCode, the shell/session host, or any process merely
+  because its arguments contain the project name.
+
 ## Quality
 
 - Keep protocol types explicit and versioned.

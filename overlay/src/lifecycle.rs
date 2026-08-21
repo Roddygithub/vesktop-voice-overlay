@@ -3,11 +3,13 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{debug, info};
 
+use crate::config::OverlaySettings;
 use crate::protocol::Snapshot;
 
 #[derive(Debug)]
 pub enum OverlayCommand {
     UpdateSnapshot(Snapshot),
+    UpdateSettings(OverlaySettings),
     Show,
     Hide,
     ClientConnected,
@@ -50,7 +52,6 @@ impl OverlayLifecycle {
         *self.client_connected.lock().unwrap() = true;
         info!("Plugin connected");
         self.cancel_hide_timeout();
-        let _ = self.cmd_tx.send(OverlayCommand::Show);
     }
 
     pub fn on_client_disconnected(&self) {
@@ -81,6 +82,7 @@ impl OverlayLifecycle {
             let socket_ready = *lifecycle.socket_ready.lock().unwrap();
 
             if !connected || !socket_ready {
+                *lifecycle.hide_timeout.lock().unwrap() = None;
                 let _ = lifecycle.cmd_tx.send(OverlayCommand::Hide);
                 debug!("Overlay hidden (no client or socket not ready)");
             }
@@ -113,14 +115,14 @@ mod tests {
     }
 
     #[test]
-    fn on_client_connected_sets_flag_and_sends_show() {
+    fn on_client_connected_sets_flag_without_showing_empty_overlay() {
         let (lifecycle, mut rx) = make_lifecycle();
         assert!(!*lifecycle.client_connected.lock().unwrap());
 
         lifecycle.on_client_connected();
 
         assert!(*lifecycle.client_connected.lock().unwrap());
-        assert!(matches!(rx.try_recv(), Ok(OverlayCommand::Show)));
+        assert!(rx.try_recv().is_err());
     }
 
     #[test]
@@ -128,11 +130,9 @@ mod tests {
         let (lifecycle, mut rx) = make_lifecycle();
 
         lifecycle.on_client_connected();
-        let _ = rx.try_recv(); // drain Show
-
         lifecycle.on_client_connected();
         assert!(*lifecycle.client_connected.lock().unwrap());
-        assert!(matches!(rx.try_recv(), Ok(OverlayCommand::Show)));
+        assert!(rx.try_recv().is_err());
     }
 
     #[test]
@@ -169,9 +169,7 @@ mod tests {
         let (lifecycle, mut rx) = make_lifecycle();
 
         lifecycle.on_client_connected();
-        assert!(matches!(rx.try_recv(), Ok(OverlayCommand::Show)));
-
-        // No other commands should be queued
+        // No commands should be queued until a visible snapshot arrives.
         assert!(rx.try_recv().is_err());
     }
 }
