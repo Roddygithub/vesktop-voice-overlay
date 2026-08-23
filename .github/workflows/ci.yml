@@ -114,6 +114,7 @@ jobs:
           cp plugin/src/index.ts \
              plugin/src/native.ts \
              plugin/src/protocol.ts \
+             plugin/src/resendCache.ts \
              plugin/src/voiceState.ts \
              plugin/src/snapshot.ts \
              /tmp/Vencord/src/userplugins/vesktopVoiceOverlay/
