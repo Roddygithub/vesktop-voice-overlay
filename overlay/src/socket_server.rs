@@ -24,10 +24,27 @@ impl SocketServer {
         }
     }
 
-    pub async fn run(&mut self) -> Result<()> {
-        let _ = std::fs::remove_file(&self.socket_path);
+    /// Bind the listening socket. Fails loudly when another live overlay
+    /// instance already owns the socket path so callers can refuse duplicate
+    /// instances; a stale socket left behind by a crashed instance is replaced.
+    pub fn bind(&self) -> Result<UnixListener> {
+        use std::os::unix::net::UnixStream;
 
-        let listener = UnixListener::bind(&self.socket_path)?;
+        let listener = match UnixListener::bind(&self.socket_path) {
+            Ok(listener) => listener,
+            Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
+                if UnixStream::connect(&self.socket_path).is_ok() {
+                    anyhow::bail!(
+                        "another vesktop-voice-overlay instance owns {}",
+                        self.socket_path
+                    );
+                }
+                debug!("Removing stale socket at {}", self.socket_path);
+                std::fs::remove_file(&self.socket_path)?;
+                UnixListener::bind(&self.socket_path)?
+            }
+            Err(e) => return Err(e.into()),
+        };
 
         #[cfg(unix)]
         {
@@ -41,6 +58,10 @@ impl SocketServer {
 
         info!("Socket server listening on {}", self.socket_path);
 
+        Ok(listener)
+    }
+
+    pub fn run(&mut self, listener: UnixListener) -> Result<()> {
         let _ = self.cmd_tx.send(OverlayCommand::SocketReady);
 
         loop {

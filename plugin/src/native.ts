@@ -1,9 +1,6 @@
 import { IpcMainInvokeEvent } from "electron";
 import net from "node:net";
-
-const MAX_RECONNECT_ATTEMPTS = 5;
-const BASE_RECONNECT_DELAY = 1000;
-const MAX_RECONNECT_DELAY = 30000;
+import { reconnectDelayMs, ResendCache } from "./resendCache";
 
 type SocketClient = {
     send: (data: string) => void;
@@ -29,6 +26,7 @@ export function startSocket(
     let reconnectTimer: NodeJS.Timeout | null = null;
     let stopped = false;
     const sendQueue: string[] = [];
+    const resendCache = new ResendCache();
 
     function connect() {
         if (stopped) return;
@@ -49,6 +47,11 @@ export function startSocket(
                         newSocket.off("data", onData);
                         newSocket.on("data", () => {});
                         flushQueue();
+                        // Restore the overlay's state immediately after any
+                        // restart so no voice activity is needed to repopulate.
+                        for (const line of resendCache.resendLines()) {
+                            socket?.write(line + "\n");
+                        }
                     } else {
                         console.error("[Vesktop Voice Overlay] Invalid protocol header:", header);
                         newSocket.destroy();
@@ -70,6 +73,7 @@ export function startSocket(
     }
 
     function send(line: string) {
+        resendCache.record(line);
         if (isConnected && socket?.writable) {
             socket.write(line + "\n");
         } else {
@@ -90,20 +94,12 @@ export function startSocket(
     function scheduleReconnect() {
         if (stopped || reconnectTimer) return;
 
-        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-            reconnectTimer = setTimeout(() => {
-                reconnectTimer = null;
-                reconnectAttempts = 0;
-                connect();
-            }, MAX_RECONNECT_DELAY);
-        } else {
-            const delay = BASE_RECONNECT_DELAY * Math.pow(2, reconnectAttempts);
-            reconnectTimer = setTimeout(() => {
-                reconnectTimer = null;
-                reconnectAttempts++;
-                connect();
-            }, delay);
-        }
+        const delay = reconnectDelayMs(reconnectAttempts);
+        reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            reconnectAttempts++;
+            connect();
+        }, delay);
     }
 
     function disconnect() {

@@ -5,6 +5,21 @@ use gtk4_layer_shell::{Layer, LayerShell as _};
 
 use crate::config::Config;
 
+/// Pointer pass-through: an empty input region makes the Wayland compositor
+/// deliver all pointer input to surfaces below the overlay while it stays
+/// fully rendered. Keyboard interactivity stays disabled independently.
+pub fn empty_input_region() -> gtk4::cairo::Region {
+    gtk4::cairo::Region::create()
+}
+
+pub fn apply_click_through(window: &gtk4::ApplicationWindow) {
+    let Some(surface) = window.surface() else {
+        return;
+    };
+    surface.set_input_region(Some(&empty_input_region()));
+    tracing::debug!("Applied empty input region (pointer click-through)");
+}
+
 pub fn create_layer_shell_window(
     app: &Application,
     config: &Config,
@@ -28,6 +43,10 @@ pub fn create_layer_shell_window(
     window.set_exclusive_zone(0);
     window.set_default_size(240, 60);
     window.add_css_class("vesktop-voice-overlay");
+
+    // The GdkSurface only exists once the window is mapped; re-apply on every
+    // map so remounts keep pointer pass-through.
+    window.connect_map(apply_click_through);
 
     Ok(window)
 }
@@ -102,5 +121,17 @@ fn set_anchors(window: &gtk4::ApplicationWindow, position: &str, custom_x: i32, 
             window.set_margin(Edge::Top, 20);
             window.set_margin(Edge::Right, 20);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_input_region_is_actually_empty() {
+        let region = empty_input_region();
+        assert!(region.is_empty());
+        assert_eq!(region.num_rectangles(), 0);
     }
 }

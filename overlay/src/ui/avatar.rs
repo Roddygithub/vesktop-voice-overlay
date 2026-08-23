@@ -1,8 +1,114 @@
 use gdk_pixbuf::Pixbuf;
 use gtk4::prelude::*;
 use gtk4::{Align, Picture};
+use once_cell::sync::Lazy;
+use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 use std::sync::Mutex;
+
+/// One shared worker pool for all avatar downloads: a single runtime per
+/// process instead of one thread + one Tokio runtime per request.
+static IO_RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
+    tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(1)
+        .enable_all()
+        .build()
+        .expect("create shared avatar IO runtime")
+});
+
+const AVATAR_CACHE_CAPACITY: usize = 128;
+
+#[derive(Clone)]
+struct CachedImage {
+    width: i32,
+    height: i32,
+    rgba: Vec<u8>,
+}
+
+impl CachedImage {
+    fn to_pixbuf(&self) -> anyhow::Result<Pixbuf> {
+        Ok(Pixbuf::from_mut_slice(
+            self.rgba.clone(),
+            gdk_pixbuf::Colorspace::Rgb,
+            true,
+            8,
+            self.width,
+            self.height,
+            self.width * 4,
+        ))
+    }
+}
+
+fn decode_rgba(bytes: &[u8]) -> anyhow::Result<CachedImage> {
+    let img = image::load_from_memory(bytes)?;
+    let rgba = img.to_rgba8();
+    let (width, height) = rgba.dimensions();
+    Ok(CachedImage {
+        width: width as i32,
+        height: height as i32,
+        rgba: rgba.into_raw(),
+    })
+}
+
+/// Bounded FIFO-evicted cache keyed by avatar URL. Generic over the stored
+/// value so the eviction policy can be unit-tested without graphical types.
+struct AvatarCache<V> {
+    capacity: usize,
+    entries: HashMap<String, V>,
+    order: VecDeque<String>,
+}
+
+impl<V> AvatarCache<V> {
+    fn new(capacity: usize) -> Self {
+        Self {
+            capacity,
+            entries: HashMap::new(),
+            order: VecDeque::new(),
+        }
+    }
+
+    fn get(&self, key: &str) -> Option<&V> {
+        self.entries.get(key)
+    }
+
+    fn put(&mut self, key: String, value: V) {
+        if let Some(existing) = self.entries.get_mut(&key) {
+            *existing = value;
+            return;
+        }
+        while self.entries.len() >= self.capacity {
+            if let Some(oldest) = self.order.pop_front() {
+                self.entries.remove(&oldest);
+            } else {
+                break;
+            }
+        }
+        self.order.push_back(key.clone());
+        self.entries.insert(key, value);
+    }
+
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.entries.len()
+    }
+}
+
+static IMAGE_CACHE: Lazy<Mutex<AvatarCache<CachedImage>>> =
+    Lazy::new(|| Mutex::new(AvatarCache::new(AVATAR_CACHE_CAPACITY)));
+
+fn cached_image(url: &str) -> Option<Pixbuf> {
+    let cache = IMAGE_CACHE.lock().unwrap();
+    cache.get(url).and_then(|image| image.to_pixbuf().ok())
+}
+
+async fn fetch_and_decode(url: String) -> Option<CachedImage> {
+    let response = reqwest::get(&url).await.ok()?;
+    if !response.status().is_success() {
+        return None;
+    }
+    let bytes = response.bytes().await.ok()?;
+    decode_rgba(&bytes).ok()
+}
 
 pub struct AvatarWidget {
     picture: Picture,
@@ -58,49 +164,32 @@ impl AvatarWidget {
     }
 
     async fn load_avatar(&self, url: &str) {
-        let url = url.to_string();
+        if let Some(pixbuf) = cached_image(url) {
+            let texture = gdk4::Texture::for_pixbuf(&pixbuf);
+            self.picture.set_paintable(Some(&texture));
+            return;
+        }
+
+        let url_owned = url.to_string();
         let (tx, rx) = tokio::sync::oneshot::channel();
-        std::thread::spawn(move || {
-            let bytes = tokio::runtime::Runtime::new().ok().and_then(|runtime| {
-                runtime.block_on(async {
-                    match reqwest::get(&url).await {
-                        Ok(response) if response.status().is_success() => {
-                            response.bytes().await.ok().map(|bytes| bytes.to_vec())
-                        }
-                        _ => None,
-                    }
-                })
-            });
-            let _ = tx.send(bytes);
+        IO_RUNTIME.handle().spawn(async move {
+            let decoded = fetch_and_decode(url_owned).await;
+            let _ = tx.send(decoded);
         });
 
-        let bytes = rx.await.ok().flatten();
-
-        if let Some(bytes) = bytes {
-            if let Ok(texture) = self.bytes_to_texture(&bytes).await {
+        if let Some(image) = rx.await.ok().flatten() {
+            if let Ok(pixbuf) = image.to_pixbuf() {
+                IMAGE_CACHE
+                    .lock()
+                    .unwrap()
+                    .put(url.to_string(), image.clone());
+                let texture = gdk4::Texture::for_pixbuf(&pixbuf);
                 self.picture.set_paintable(Some(&texture));
                 return;
             }
         }
 
         self.set_placeholder();
-    }
-
-    async fn bytes_to_texture(&self, bytes: &[u8]) -> anyhow::Result<gdk4::Texture> {
-        let img = image::load_from_memory(bytes)?;
-        let rgba = img.to_rgba8();
-        let (width, height) = rgba.dimensions();
-        let pixbuf = Pixbuf::from_mut_slice(
-            rgba.into_raw(),
-            gdk_pixbuf::Colorspace::Rgb,
-            true,
-            8,
-            width as i32,
-            height as i32,
-            (width * 4) as i32,
-        );
-
-        Ok(gdk4::Texture::for_pixbuf(&pixbuf))
     }
 
     fn set_placeholder(&self) {
@@ -124,5 +213,50 @@ impl AvatarWidget {
         if self.picture.paintable().is_none() {
             self.set_placeholder();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cache_evicts_oldest_beyond_capacity() {
+        let mut cache: AvatarCache<u32> = AvatarCache::new(2);
+        cache.put("a".into(), 1);
+        cache.put("b".into(), 2);
+        assert_eq!(cache.len(), 2);
+
+        cache.put("c".into(), 3);
+        assert_eq!(cache.len(), 2);
+        assert!(cache.get("a").is_none(), "oldest entry must be evicted");
+        assert_eq!(cache.get("b"), Some(&2));
+        assert_eq!(cache.get("c"), Some(&3));
+
+        cache.put("c".into(), 30);
+        cache.put("d".into(), 4);
+        assert_eq!(cache.get("c"), Some(&30), "refreshed key stays");
+        assert_eq!(cache.len(), 2);
+    }
+
+    #[test]
+    fn decode_rejects_invalid_bytes() {
+        assert!(decode_rgba(b"not an image").is_err());
+    }
+
+    #[test]
+    fn decode_round_trips_dimensions_and_pixels() {
+        let img = image::RgbaImage::from_pixel(2, 3, image::Rgba([10u8, 20, 30, 255]));
+        let mut png_bytes = Vec::new();
+        image::DynamicImage::ImageRgba8(img)
+            .write_to(
+                &mut std::io::Cursor::new(&mut png_bytes),
+                image::ImageFormat::Png,
+            )
+            .expect("png encodes");
+
+        let decoded = decode_rgba(&png_bytes).expect("decodes");
+        assert_eq!((decoded.width, decoded.height), (2, 3));
+        assert_eq!(decoded.rgba.len(), 2 * 3 * 4);
     }
 }

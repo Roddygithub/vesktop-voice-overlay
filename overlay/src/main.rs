@@ -7,6 +7,7 @@ mod ui;
 
 use anyhow::Result;
 use clap::Parser;
+use gtk4::gio;
 use gtk4::prelude::*;
 use gtk4::Application;
 use std::sync::Arc;
@@ -51,11 +52,18 @@ fn main() -> Result<()> {
 
     let application = Application::builder()
         .application_id("com.github.roddygithub.vesktop-voice-overlay")
+        // Independent processes: duplicate-instance refusal is owned by the
+        // Unix socket bind, not by GTK's DBus remote activation (which would
+        // otherwise forward launches to the primary and confuse lifecycle).
+        .flags(gio::ApplicationFlags::NON_UNIQUE)
         .build();
 
     application.connect_activate(move |app| {
         if let Err(e) = run_application(app) {
             error!("Application error: {}", e);
+            // Surface duplicate-instance / bind failures to systemd and shells
+            // instead of exiting successfully with a dead UI.
+            std::process::exit(1);
         }
     });
 
@@ -67,12 +75,24 @@ fn run_application(app: &Application) -> Result<()> {
     let config = Config::load().unwrap_or_default();
     let config = Arc::new(config);
 
-    let window = create_layer_shell_window(app, &config)?;
-
     let (cmd_tx, mut cmd_rx) = mpsc::unbounded_channel();
+
+    // Bind synchronously before touching GTK: a second overlay instance
+    // (e.g. manual launch while the systemd service runs) must fail here
+    // instead of running a second UI against a dead socket.
+    let server = SocketServer::new(config.socket_path().to_string(), cmd_tx.clone());
+    let listener = server.bind()?;
+
+    let window = create_layer_shell_window(app, &config)?;
 
     let lifecycle = OverlayLifecycle::new(cmd_tx.clone());
     let ui = OverlayUI::new(&window, &config)?;
+
+    // Present the (fully transparent, row-less) window up front so the
+    // process stays alive while waiting for Vesktop to connect; otherwise a
+    // GTK application with no mapped window would exit immediately. The
+    // compositor renders nothing visible until participants appear.
+    window.present();
 
     let window_clone = window.clone();
     glib::spawn_future_local(async move {
@@ -139,12 +159,10 @@ fn run_application(app: &Application) -> Result<()> {
         }
     });
 
-    let socket_path = config.socket_path();
-    let mut server = SocketServer::new(socket_path.to_string(), cmd_tx);
-
     std::thread::spawn(move || {
         let runtime = tokio::runtime::Runtime::new().expect("create socket server runtime");
-        if let Err(e) = runtime.block_on(server.run()) {
+        let mut server = server;
+        if let Err(e) = runtime.block_on(async move { server.run(listener) }) {
             error!("Socket server error: {}", e);
         }
     });

@@ -1,16 +1,20 @@
 pkgbase = vesktop-voice-overlay
 	pkgdesc = Wayland-native voice activity overlay for Vesktop
-	pkgver = 0.1.0
+	pkgver = 1.1.0
 	pkgrel = 1
 	url = https://github.com/Roddygithub/vesktop-voice-overlay
+	install = vesktop-voice-overlay.install
 	arch = x86_64
 	license = GPL-3.0-only
 	makedepends = cargo
 	makedepends = git
+	makedepends = pkg-config
+	makedepends = libadwaita
+	makedepends = gtk4-layer-shell
 	depends = gtk4
-	depends = libadwaita
-	depends = glib2
-	source = vesktop-voice-overlay-0.1.0.tar.gz::https://github.com/Roddygithub/vesktop-voice-overlay/archive/v0.1.0.tar.gz
+	depends = gtk4-layer-shell
+	options = !lto
+	source = vesktop-voice-overlay-1.1.0.tar.gz::https://github.com/Roddygithub/vesktop-voice-overlay/archive/v1.1.0.tar.gz
 	sha256sums = SKIP
 
 pkgname = vesktop-voice-overlay

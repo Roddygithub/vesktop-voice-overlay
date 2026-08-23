@@ -14,10 +14,11 @@ A lightweight, highly responsive, **Wayland-native (layer-shell)** overlay that 
 ### Key Features
 
 - 🔒 **Privacy-first**: No Discord token access, no self-bots, no separate Gateway connections
-- 🖥️ **Wayland-native**: Uses `layer-shell` protocol for click-through overlay on wlroots compositors (Hyprland, sway, niri, etc.)
+- 🖥️ **Wayland-native**: Uses `layer-shell` protocol with an empty input region, so mouse clicks pass through to whatever is underneath (wlroots compositors: Hyprland, sway, niri, etc.)
 - ⚡ **Low latency**: Unix socket bridge (< 100ms speaking indicator update)
 - 🎮 **Game compatible**: Click-through overlay works over fullscreen XWayland games
-- 🔄 **Auto-reconnect**: Exponential backoff reconnection if Vesktop or overlay restarts
+- 🔄 **Auto-reconnect**: Fast bounded backoff (≤ 2s) if Vesktop or the overlay restarts; the latest settings and voice snapshot are replayed automatically so no voice activity is needed to repopulate the overlay
+- 🚀 **Session autostart**: ships a `systemd --user` service (`vesktop-voice-overlay.service`)
 
 ## Architecture
 
@@ -86,8 +87,7 @@ cargo build --release
 ```bash
 cd ~/vesktop-voice-overlay/plugin
 npm ci
-npm run build
-npm pack  # Produces vesktop-voice-overlay-plugin-0.1.0.tgz
+npm pack  # Produces vesktop-voice-overlay-plugin-<version>.tgz
 ```
 
 #### Install Plugin in Vesktop
@@ -131,7 +131,7 @@ horizontal and vertical offsets from the top-left of the active display.
 
 ## Usage
 
-1. Start the overlay (`vesktop-voice-overlay` or `./target/release/vesktop-voice-overlay`)
+1. Start the overlay (`systemctl --user start vesktop-voice-overlay` or `./target/release/vesktop-voice-overlay`)
 2. Open Vesktop and join a voice channel
 3. Overlay appears automatically with participant avatars
 4. **Green pulse ring** = currently speaking
@@ -139,26 +139,31 @@ horizontal and vertical offsets from the top-left of the active display.
 
 ## Auto-start (systemd user service)
 
-```ini
-# ~/.config/systemd/user/vesktop-voice-overlay.service
-[Unit]
-Description=Vesktop Voice Overlay
-After=graphical-session.target
-
-[Service]
-Type=simple
-ExecStart=/usr/bin/vesktop-voice-overlay  # or /path/to/binary
-Restart=on-failure
-Environment=XDG_RUNTIME_DIR=/run/user/1000
-
-[Install]
-WantedBy=default.target
-```
+The AUR package ships `vesktop-voice-overlay.service` in
+`/usr/lib/systemd/user/`. It starts the overlay with your graphical session,
+restarts it if it ever exits, and is independent of Vesktop's lifecycle
+(the plugin reconnects whenever Vesktop appears).
 
 ```bash
-systemctl --user daemon-reload
-systemctl --user enable --now vesktop-voice-overlay
+# Enable autostart for every session:
+systemctl --user enable --now vesktop-voice-overlay.service
+
+# Manual control:
+systemctl --user status vesktop-voice-overlay.service
+journalctl --user -u vesktop-voice-overlay.service -f
 ```
+
+If your compositor session does not activate `graphical-session.target`
+(e.g. Hyprland started without uwsm), either start it from your Hyprland
+config (`exec-once = systemctl --user start vesktop-voice-overlay`) or enable
+the default.target variant:
+
+```bash
+systemctl --user enable vesktop-voice-overlay.service
+```
+
+Running a second instance manually while the service owns the socket fails
+cleanly with `another vesktop-voice-overlay instance owns ...` and exit code 1.
 
 ## Distribution
 

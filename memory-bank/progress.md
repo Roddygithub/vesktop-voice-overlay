@@ -257,6 +257,48 @@ FALLBACK: NOT AVAILABLE
   overlay, Small → Large → Small visibly resizes avatars live in a real voice
   session. Avatar size mode bug closed.
 
+## ✅ Phase 2 — Game-Ready Hardening — 2026-08-23
+
+- **C1 click-through**: `gdk_surface_set_input_region` (GTK 4.22 / gdk4 0.11)
+  with an empty cairo region, applied on every window map; keyboard mode
+  stays `None`. Runtime log confirms the region applies on Hyprland; human
+  click-through confirmation pending.
+- **C2 AUR packaging**: PKGBUILD fixed (`gtk4-layer-shell` in
+  depends+makedepends, `pkg-config`/`libadwaita` makedepends,
+  `options=(!lto)` because makepkg's gcc `-flto` breaks rust-lld linking of
+  ring objects), pkgver 1.1.0, unit file installed to
+  `/usr/lib/systemd/user`. Full `makepkg -f --nodeps` build+check pass on a
+  local tarball of this tree; packaged binary resolves all shared libs.
+- **C3 autostart**: shipped `systemd --user` unit (Restart=always, 2s);
+  socket bind now happens before GTK init and a live duplicate instance is
+  refused with exit code 1; GTK app made `NON_UNIQUE` so remote activation
+  cannot bypass socket ownership; empty overlay window is presented at start
+  so the service stays alive before Vesktop connects.
+- **C4 reconnect**: plugin backoff capped at 2s (no more 30s pause phase);
+  main-process `ResendCache` replays the latest settings + snapshot right
+  after every successful handshake, so an overlay restart repopulates without
+  any voice activity. Pure logic covered by vitest (`resendCache.test.ts`).
+- **C5/C6 avatars**: settings updates no longer reset rows (keyed rows update
+  in place); bounded FIFO cache (128 entries) of decoded RGBA keyed by URL;
+  one shared single-worker Tokio runtime replaces thread+runtime-per-fetch.
+  Measured: 2 HTTP fetches total across snapshot + 3 settings toggles
+  (previously refetched on every toggle).
+- Gates: cargo fmt/clippy/test(20)/build --release --locked, plugin vitest
+  (14)/eslint, Vencord pinned-revision build with discovery greps — all green.
+
+### Phase 2 validation status (test-candidate checkpoint)
+
+- Game-Ready Hardening implementation: **COMPLETE**.
+- Automated validation: **PASS** (all authoritative gates green).
+- Desktop/Hyprland technical validation: **PASS where actually proven**
+  (input region applied on mapped layer surface; single-instance refusal;
+  stale socket replacement; 2 avatar fetches across settings toggles).
+- Real in-game validation: **PENDING** (gaming PC).
+- Pointer click-through over GW2/Dota 2: **PENDING HUMAN VALIDATION**.
+- Fullscreen/borderless visibility over games: **PENDING HUMAN VALIDATION**.
+- The commit/push of this state is a deployment checkpoint, NOT final
+  acceptance; no release or version tag until the game test passes.
+
 ---
 
 *Projet livré — v1.0.0 — 2026-08-16*

@@ -62,7 +62,9 @@ impl OverlayUI {
 
     pub fn update_settings(&self, settings: OverlaySettings) -> bool {
         self.config.borrow_mut().apply_overlay_settings(settings);
-        self.participant_list.reset();
+        // No reset: keyed participant rows are updated in place so settings
+        // changes never recreate widgets or re-download avatars. The
+        // enabled=false path inside update() still clears rows.
         self.last_snapshot
             .borrow()
             .as_ref()
