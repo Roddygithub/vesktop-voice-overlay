@@ -170,4 +170,19 @@ mod tests {
 
         assert!(deserialize_client_message(json).is_none());
     }
+
+    #[test]
+    fn test_deserialize_settings_accepts_large_avatar_mode() {
+        let json = r#"{"type":"settings","settings":{"enabled":true,"position":"top-right","custom_x":20,"custom_y":20,"user_display":"speaking_only","name_display":"always","avatar_size_mode":"large"}}"#;
+
+        match deserialize_client_message(json) {
+            Some(ClientMessage::Settings { settings }) => {
+                assert_eq!(
+                    settings.avatar_size_mode,
+                    crate::config::AvatarSizeMode::Large
+                );
+            }
+            other => panic!("Expected valid settings message, got {other:?}"),
+        }
+    }
 }

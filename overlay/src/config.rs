@@ -205,3 +205,39 @@ impl Config {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn avatar_size_mode_resolves_to_distinct_pixel_sizes() {
+        let mut config = Config::default();
+        assert_eq!(config.avatar_size_px(), 28);
+
+        config.overlay.avatar_size_mode = AvatarSizeMode::Large;
+        assert_eq!(config.avatar_size_px(), 40);
+
+        config.overlay.avatar_size_mode = AvatarSizeMode::Small;
+        assert_eq!(config.avatar_size_px(), 28);
+    }
+
+    #[test]
+    fn apply_overlay_settings_carries_avatar_size_mode() {
+        let mut config = Config::default();
+        let settings = OverlaySettings {
+            enabled: true,
+            position: "top-right".into(),
+            custom_x: 0,
+            custom_y: 0,
+            user_display: UserDisplayMode::Always,
+            name_display: NameDisplayMode::Always,
+            avatar_size_mode: AvatarSizeMode::Large,
+        };
+
+        config.apply_overlay_settings(settings);
+
+        assert_eq!(config.overlay.avatar_size_mode, AvatarSizeMode::Large);
+        assert_eq!(config.avatar_size_px(), 40);
+    }
+}

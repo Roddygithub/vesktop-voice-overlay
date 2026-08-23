@@ -233,6 +233,30 @@ FALLBACK: NOT AVAILABLE
 - Runtime startup confirmed receipt of the settings update. Rust formatting,
   clippy, tests, release build, plugin lint/tests, and Vencord build pass.
 
+## ✅ Avatar Size Mode Diagnosis — 2026-08-23
+
+- Instrumented runtime probe measured GTK allocations for both modes on live
+  keyed rows driven through the REAL Unix socket with REAL 128px async-loaded
+  avatar textures: `small` → request 28px, allocated ~33×33;
+  `large` → request 40px, allocated 40×40; toggling small→large→small applied
+  live without restart or flicker.
+- Conclusion: current working-tree source is correct at every boundary
+  (plugin serialization shape, socket protocol incl. `"large"`, serde settings
+  application, config px mapping, GtkPicture can-shrink allocation).
+- Historical failure attributed to a stale deployed overlay binary built
+  before commit 91105a2: serde silently ignores unknown JSON fields, so such a
+  binary accepts new settings messages and applies position/name/user modes
+  live while dropping `avatar_size_mode` — exactly the observed symptom.
+- Resolution: rebuild/restart the deployed overlay from this tree when a
+  Vesktop environment is available. Added regression tests pinning
+  `avatar_size_px` (28/40), `apply_overlay_settings` propagation, and wire
+  parsing of `"avatar_size_mode":"large"`.
+- Rust fmt/clippy/test/release build, plugin vitest/eslint, and the pinned
+  Vencord integration build (`ef29bbeb`, discovery greps) all pass.
+- **Human runtime validation PASS (2026-08-23)**: with the freshly built
+  overlay, Small → Large → Small visibly resizes avatars live in a real voice
+  session. Avatar size mode bug closed.
+
 ---
 
 *Projet livré — v1.0.0 — 2026-08-16*
