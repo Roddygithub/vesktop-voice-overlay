@@ -15,6 +15,7 @@ permissions: {}
 env:
   RUST_VERSION: '1.97'
   NODE_VERSION: '20'
+  AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
 
 jobs:
   build-overlay:
@@ -143,8 +144,6 @@ jobs:
       contents: read
     runs-on: ubuntu-latest
     if: env.AUR_SSH_PRIVATE_KEY != ''
-    env:
-      AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
     container:
       image: archlinux:base-devel
       options: --user root
