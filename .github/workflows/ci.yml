@@ -116,7 +116,6 @@ jobs:
              plugin/src/protocol.ts \
              plugin/src/resendCache.ts \
              plugin/src/voiceState.ts \
-             plugin/src/snapshot.ts \
              /tmp/Vencord/src/userplugins/vesktopVoiceOverlay/
 
       - name: Install Vencord dependencies

@@ -168,10 +168,53 @@ fn handle_connection(
             info!("Received overlay settings update");
             let _ = cmd_tx.send(OverlayCommand::UpdateSettings(settings));
         } else {
-            warn!("Failed to parse snapshot: {}", line);
+            warn!(
+                payload_bytes = line.len(),
+                context = %safe_parse_context(line),
+                "Failed to parse client message; payload not logged"
+            );
         }
     }
 
     let _ = cmd_tx.send(OverlayCommand::ClientDisconnected);
     Ok(())
+}
+
+/// Builds a short, privacy-cautious diagnostic for parse failures: payload
+/// size plus a control-character-free prefix. The full untrusted payload is
+/// never logged because malformed lines can contain usernames or user IDs.
+fn safe_parse_context(line: &str) -> String {
+    const PREFIX_CHARS: usize = 24;
+    let prefix: String = line
+        .chars()
+        .filter(|c| !c.is_control())
+        .take(PREFIX_CHARS)
+        .collect();
+    format!("len={} prefix={:?}", line.chars().count(), prefix)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn safe_parse_context_truncates_and_never_includes_full_payload() {
+        let long = format!("{{\"userId\":\"{}\"}}", "A".repeat(500));
+        let context = safe_parse_context(&long);
+        assert!(context.contains("len=513"), "context was: {context}");
+        assert!(
+            !context.contains(&"A".repeat(500)),
+            "full payload must never be logged"
+        );
+        assert!(context.len() < 80, "context was: {context}");
+    }
+
+    #[test]
+    fn safe_parse_context_strips_control_characters() {
+        let context = safe_parse_context("bad\r\njson\x00here");
+        assert!(!context.contains('\r'));
+        assert!(!context.contains('\n'));
+        assert!(!context.contains('\0'));
+        assert!(context.contains("json\\\"here") || context.contains("json"));
+    }
 }

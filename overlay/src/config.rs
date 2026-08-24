@@ -166,22 +166,14 @@ static CONFIG_PATH: Lazy<PathBuf> = Lazy::new(|| {
 });
 
 impl Config {
+    /// Loads the optional TOML config file. The file is never written by the
+    /// overlay: runtime settings arrive from the Vencord plugin over the
+    /// socket and are applied in memory only.
     pub fn load() -> Result<Self> {
         let content = fs::read_to_string(&*CONFIG_PATH)?;
         let config: Config = toml::from_str(&content)?;
         debug!("Loaded config from {:?}", CONFIG_PATH);
         Ok(config)
-    }
-
-    #[expect(dead_code)]
-    pub fn save(&self) -> Result<()> {
-        if let Some(parent) = CONFIG_PATH.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        let content = toml::to_string_pretty(self)?;
-        fs::write(&*CONFIG_PATH, content)?;
-        debug!("Saved config to {:?}", CONFIG_PATH);
-        Ok(())
     }
 
     pub fn socket_path(&self) -> &str {

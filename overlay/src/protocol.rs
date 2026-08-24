@@ -81,13 +81,6 @@ pub fn deserialize_client_message(line: &str) -> Option<ClientMessage> {
     }
 }
 
-#[expect(dead_code)]
-pub fn get_socket_path() -> String {
-    std::env::var("XDG_RUNTIME_DIR")
-        .map(|dir| format!("{}/vesktop-voice-overlay.sock", dir))
-        .unwrap_or_else(|_| format!("/tmp/vesktop-voice-overlay-{}.sock", std::process::id()))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

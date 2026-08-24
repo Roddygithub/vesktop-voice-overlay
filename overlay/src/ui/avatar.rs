@@ -1,6 +1,6 @@
 use gdk_pixbuf::Pixbuf;
 use gtk4::prelude::*;
-use gtk4::{Align, Picture};
+use gtk4::{Align, Image};
 use once_cell::sync::Lazy;
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
@@ -111,22 +111,27 @@ async fn fetch_and_decode(url: String) -> Option<CachedImage> {
 }
 
 pub struct AvatarWidget {
-    picture: Picture,
+    image: Image,
     current_url: Mutex<Option<String>>,
     size: Mutex<i32>,
 }
 
 impl AvatarWidget {
     pub fn new(url: &str, size: i32) -> Rc<Self> {
-        let picture = Picture::new();
-        picture.set_size_request(size, size);
-        picture.set_can_shrink(true);
-        picture.set_halign(Align::Start);
-        picture.set_valign(Align::Center);
-        picture.add_css_class("participant-avatar");
+        let image = Image::new();
+        // GtkImage measures exactly pixel_size regardless of the paintable's
+        // intrinsic size, so the configured avatar size is authoritative.
+        // GtkPicture would size itself from the downloaded texture instead.
+        image.set_pixel_size(size);
+        image.set_halign(Align::Start);
+        image.set_valign(Align::Center);
+        // GtkImage does not clip its paintable to the CSS border-radius on
+        // its own; force the circular avatar mask.
+        image.set_overflow(gtk4::Overflow::Hidden);
+        image.add_css_class("participant-avatar");
 
         let this = Rc::new(Self {
-            picture,
+            image,
             current_url: Mutex::new(None),
             size: Mutex::new(size),
         });
@@ -144,8 +149,8 @@ impl AvatarWidget {
         this
     }
 
-    pub fn widget(&self) -> &Picture {
-        &self.picture
+    pub fn widget(&self) -> &Image {
+        &self.image
     }
 
     #[expect(dead_code)]
@@ -166,7 +171,7 @@ impl AvatarWidget {
     async fn load_avatar(&self, url: &str) {
         if let Some(pixbuf) = cached_image(url) {
             let texture = gdk4::Texture::for_pixbuf(&pixbuf);
-            self.picture.set_paintable(Some(&texture));
+            self.image.set_paintable(Some(&texture));
             return;
         }
 
@@ -184,7 +189,7 @@ impl AvatarWidget {
                     .unwrap()
                     .put(url.to_string(), image.clone());
                 let texture = gdk4::Texture::for_pixbuf(&pixbuf);
-                self.picture.set_paintable(Some(&texture));
+                self.image.set_paintable(Some(&texture));
                 return;
             }
         }
@@ -194,7 +199,7 @@ impl AvatarWidget {
 
     fn set_placeholder(&self) {
         let texture = self.create_placeholder_texture();
-        self.picture.set_paintable(Some(&texture));
+        self.image.set_paintable(Some(&texture));
     }
 
     fn create_placeholder_texture(&self) -> gdk4::Texture {
@@ -208,9 +213,8 @@ impl AvatarWidget {
 
     pub fn set_size(&self, size: i32) {
         *self.size.lock().unwrap() = size;
-        self.picture.set_size_request(size, size);
-        self.picture.queue_resize();
-        if self.picture.paintable().is_none() {
+        self.image.set_pixel_size(size);
+        if self.image.paintable().is_none() {
             self.set_placeholder();
         }
     }
@@ -258,5 +262,39 @@ mod tests {
         let decoded = decode_rgba(&png_bytes).expect("decodes");
         assert_eq!((decoded.width, decoded.height), (2, 3));
         assert_eq!(decoded.rgba.len(), 2 * 3 * 4);
+    }
+
+    /// Regression guard for the v1.1.0 avatar sizing fix: GtkPicture derives
+    /// its natural size from the paintable (Discord avatars are 128-256px), so
+    /// `set_size_request` could not shrink the widget and Small/Large resizing
+    /// silently no-op'd at runtime. GtkImage must measure exactly pixel_size
+    /// in both orientations regardless of the paintable's intrinsic size.
+    #[test]
+    fn gtk_image_measures_pixel_size_regardless_of_paintable_natural_size() {
+        if gtk4::init().is_err() {
+            eprintln!("skipping: no display available for GTK widget test");
+            return;
+        }
+
+        let bytes = gtk4::glib::Bytes::from(&vec![0u8; 256 * 256 * 4]);
+        let texture =
+            gdk4::MemoryTexture::new(256, 256, gdk4::MemoryFormat::R8g8b8a8, &bytes, 256 * 4);
+
+        let image = Image::new();
+        image.set_pixel_size(28);
+        image.set_paintable(Some(&texture));
+
+        for orientation in [gtk4::Orientation::Horizontal, gtk4::Orientation::Vertical] {
+            let (minimum, natural, _, _) = image.measure(orientation, -1);
+            assert_eq!(
+                (minimum, natural),
+                (28, 28),
+                "avatar must measure pixel_size, never the paintable's intrinsic size"
+            );
+        }
+
+        image.set_pixel_size(40);
+        let (minimum, natural, _, _) = image.measure(gtk4::Orientation::Horizontal, -1);
+        assert_eq!((minimum, natural), (40, 40));
     }
 }
