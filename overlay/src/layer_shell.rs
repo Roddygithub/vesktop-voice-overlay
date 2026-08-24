@@ -41,7 +41,9 @@ pub fn create_layer_shell_window(
         config.overlay.custom_y,
     );
     window.set_exclusive_zone(0);
-    window.set_default_size(240, 60);
+    // GTK auto-sizes the window from the ScrolledWindow's natural content
+    // height (propagate_natural_height). No fixed size: the background
+    // panel wraps exactly the visible participant rows.
     window.add_css_class("vesktop-voice-overlay");
 
     // The GdkSurface only exists once the window is mapped; re-apply on every

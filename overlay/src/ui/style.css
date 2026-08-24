@@ -1,5 +1,6 @@
 /* Discord-inspired Voice Widget */
 
+/* The window and scroll container stay transparent (layer-shell surface). */
 window.vesktop-voice-overlay,
 .vesktop-voice-overlay,
 scrolledwindow.overlay-scrolled,
@@ -8,9 +9,11 @@ scrolledwindow.overlay-scrolled > viewport,
     background-color: transparent;
 }
 
+/* Semi-transparent dark panel: readable over any game background. */
 .overlay-container {
-    background-color: transparent;
-    padding: 0;
+    background-color: alpha(#111214, 0.88);
+    border-radius: 10px;
+    padding: 6px 8px;
 }
 
 .overlay-scrolled {
@@ -21,10 +24,11 @@ scrolledwindow.overlay-scrolled > viewport,
 
 .participant-row {
     min-height: 36px;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
     background-color: transparent;
     border: 0;
     box-shadow: none;
+    border-radius: 6px;
 }
 
 .participant-row.speaking {
@@ -35,6 +39,7 @@ scrolledwindow.overlay-scrolled > viewport,
     border-radius: 50%;
     border: 2px solid alpha(@theme_fg_color, 0.1);
     margin-right: 0;
+    transition: border-color 180ms ease, box-shadow 180ms ease;
 }
 
 .participant-avatar.speaking {
@@ -46,32 +51,16 @@ scrolledwindow.overlay-scrolled > viewport,
     font-size: 14px;
     font-weight: 600;
     color: #f5f5f5;
-    background-color: alpha(#111214, 0.88);
+    background-color: alpha(#1e1f22, 0.72);
     border: 1px solid alpha(#ffffff, 0.06);
     border-radius: 999px;
-    padding: 7px 13px;
-    margin-right: 4px;
+    padding: 5px 11px;
+    margin-right: 2px;
 }
 
-.voice-status {
-    color: alpha(#f23f42, 0.9);
-    margin-left: 5px;
-}
-
-.muted-indicator {
-    color: @warning_color;
-    font-size: 11px;
-    margin-left: 6px;
-}
-
-.deafened-indicator {
-    color: @error_color;
-    font-size: 11px;
-    margin-left: 6px;
-}
-
-.volume-indicator {
-    font-size: 11px;
-    color: alpha(@theme_fg_color, 0.6);
-    margin-left: 8px;
+/* Compact mute/deaf badges overlaid on the avatar's bottom-right corner. */
+.avatar-badge {
+    color: #f23f42;
+    min-width: 14px;
+    min-height: 14px;
 }
