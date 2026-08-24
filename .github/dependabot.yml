@@ -1,0 +1,38 @@
+version: 2
+
+updates:
+  - package-ecosystem: "npm"
+    directory: "/plugin"
+    schedule:
+      interval: "monthly"
+    groups:
+      npm-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "cargo"
+    directory: "/overlay"
+    schedule:
+      interval: "monthly"
+    groups:
+      cargo-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      actions-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+    open-pull-requests-limit: 5

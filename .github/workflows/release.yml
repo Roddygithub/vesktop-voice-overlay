@@ -10,9 +10,7 @@ on:
         required: false
         type: string
 
-permissions:
-  contents: write
-  packages: write
+permissions: {}
 
 env:
   RUST_VERSION: '1.97'
@@ -20,19 +18,21 @@ env:
 
 jobs:
   build-overlay:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
         with:
           fetch-depth: 0
       
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
         with:
           toolchain: ${{ env.RUST_VERSION }}
       
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.2.3
         with:
           path: |
             ~/.cargo/bin
@@ -74,21 +74,23 @@ jobs:
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
       
       - name: Upload overlay binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: vesktop-voice-overlay
           path: overlay/target/release/vesktop-voice-overlay
           retention-days: 7
 
   build-plugin:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
         with:
           fetch-depth: 0
       
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -107,22 +109,24 @@ jobs:
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
       
       - name: Upload plugin package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: vesktop-voice-overlay-plugin
           path: plugin/*.tgz
           retention-days: 7
 
   create-release:
+    permissions:
+      contents: write
     needs: [build-overlay, build-plugin]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: artifacts
       
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@26994186c0ac3ef5cae75ac16aa32e8153525f77 # v1 (v2.3.2)
         with:
           files: |
             artifacts/vesktop-voice-overlay/vesktop-voice-overlay
@@ -135,6 +139,8 @@ jobs:
 
   update-aur:
     needs: create-release
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     if: env.AUR_SSH_PRIVATE_KEY != ''
     env:
@@ -143,12 +149,12 @@ jobs:
       image: archlinux:base-devel
       options: --user root
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
         with:
           fetch-depth: 0
       
       - name: Download overlay binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: vesktop-voice-overlay
           path: artifacts
@@ -208,8 +214,12 @@ jobs:
       - name: Clean up
         run: rm -rf /tmp/vesktop-voice-overlay-aur ~/.ssh/id_ed25519
 
-  update-aur:
+    permissions:
+      contents: read
+  update-aur-skip:
     needs: create-release
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     if: env.AUR_SSH_PRIVATE_KEY == ''
     steps:
