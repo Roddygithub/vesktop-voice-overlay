@@ -101,23 +101,60 @@ pub struct Participant {
     pub volume: Option<u8>,
 }
 
+## Settings Message
+
+Alongside snapshots, the plugin sends its current overlay settings whenever
+they change (and once right after connecting):
+
+```json
+{
+  "type": "settings",
+  "settings": {
+    "enabled": true,
+    "position": "custom",
+    "custom_x": 2000,
+    "custom_y": 400,
+    "user_display": "speaking_only",
+    "name_display": "speaking_only",
+    "avatar_size_mode": "small"
+  }
+}
+```
+
+Validation (invalid settings messages are dropped):
+
+- `position`: one of `top-left`, `top-right`, `bottom-left`, `bottom-right`,
+  `center`, `custom`
+- `custom_x` / `custom_y`: integers in `[-32768, 32768]`
+- `user_display`: `speaking_only` | `always`
+- `name_display`: `speaking_only` | `always` | `never`
+- `avatar_size_mode`: `small` | `large` (rendered as 28 px / 40 px)
+
 ## Versioning Strategy
 
-- Header: VESKTOP_VOICE_OVERLAY/<major>.<minor>\n
-- Overlay accepts <= current_version (forward compatible)
+- Header: `VESKTOP_VOICE_OVERLAY/1.0\n`
+- Overlay accepts **exactly** `version: 1`; any other version is rejected
+  (no forward compatibility is implemented)
 - Breaking change = major bump -> new tag v2.0.0 = plugin + overlay
 - Minor bumps = additive fields (optional, with defaults)
 
 ## Reconnection Logic
 
 ### Plugin (Client)
-- Exponential backoff: 1s, 2s, 4s, 8s, 16s, max 30s
-- Max 5 rapid retries, then 30s interval
-- On connect: validate header version, then resume sending
+- Reconnect backoff: 500 ms doubling, capped at **2 s** (500 ms, 1 s, 2 s,
+  2 s, …), unlimited retries while the plugin is enabled
+- Outgoing lines are queued while disconnected (queue capped at 100) and
+  flushed after the handshake
+- The latest settings line and the latest snapshot line are cached and
+  **replayed automatically right after the handshake**, so the overlay is
+  repopulated without waiting for new voice activity
 
 ### Overlay (Server)
-- Single listener, accepts multiple connections (only first active)
-- On client disconnect: hide overlay, wait for new connection
+- Single listener; accepts **multiple concurrent connections** (one thread
+  each). The last settings/snapshot received wins; any client may keep
+  sending
+- On client disconnect: overlay hides after a short grace delay unless
+  another client is connected
 - Validate SO_PEERCRED UID matches current user
 
 ## Security

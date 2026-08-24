@@ -51,7 +51,7 @@ yay -S vesktop-voice-overlay
 
 # 2. Vencord Plugin (via Vesktop UI)
 # Vesktop → Settings → Plugins → Install from Store → "Vesktop Voice Overlay"
-# OR: Install from file → vesktop-voice-overlay-plugin-0.1.0.tgz
+# OR: Install from file → vesktop-voice-overlay-plugin-1.1.0.tgz
 
 # 3. Launch overlay
 vesktop-voice-overlay
@@ -62,24 +62,18 @@ vesktop-voice-overlay
 #### Prerequisites
 ```bash
 # Arch
-sudo pacman -S rust gtk4 libadwaita meson ninja wayland-protocols valac
+sudo pacman -S rust gtk4 libadwaita gtk4-layer-shell pkg-config
 
-# Ubuntu/Debian
-sudo apt install rustc cargo libgtk-4-dev libadwaita-1-dev meson ninja-build libwayland-dev wayland-protocols valac
+# Other distros: install rustc/cargo, GTK4, libadwaita and gtk4-layer-shell
+# (on distros that do not package gtk4-layer-shell, build it from source:
+#  https://github.com/wmww/gtk4-layer-shell)
 ```
 
 #### Build Overlay (Rust)
 ```bash
 git clone https://github.com/Roddygithub/vesktop-voice-overlay.git
 cd vesktop-voice-overlay/overlay
-
-# Build gtk4-layer-shell from source (required)
-git clone https://github.com/wmww/gtk4-layer-shell.git /tmp/gtk4-layer-shell
-cd /tmp/gtk4-layer-shell && meson setup build --prefix=/usr/local && ninja -C build && sudo ninja -C build install && sudo ldconfig
-
-# Build overlay
-cd ~/vesktop-voice-overlay/overlay
-cargo build --release
+cargo build --release --locked
 # Binary at: target/release/vesktop-voice-overlay
 ```
 
@@ -93,7 +87,36 @@ npm pack  # Produces vesktop-voice-overlay-plugin-<version>.tgz
 #### Install Plugin in Vesktop
 1. Open Vesktop → Settings → Plugins
 2. Click **"Install from file"**
-3. Select `vesktop-voice-overlay-plugin-0.1.0.tgz`
+3. Select `vesktop-voice-overlay-plugin-<version>.tgz`
+
+### Development: Vencord userplugin workflow (supported)
+
+This is the workflow used for development and for custom Vesktop builds
+(this is how the plugin is actually built and loaded when using a local
+Vencord):
+
+```bash
+git clone https://github.com/Vendicated/Vencord.git
+cd Vencord
+git checkout ef29bbeb            # revision pinned by CI (.github/workflows/ci.yml)
+
+mkdir -p src/userplugins/vesktopVoiceOverlay
+cp <repo>/plugin/src/{index.ts,native.ts,protocol.ts,resendCache.ts,voiceState.ts} \
+   src/userplugins/vesktopVoiceOverlay/
+
+pnpm install --no-frozen-lockfile
+pnpm build
+
+# REQUIRED: without this sentinel file, Vesktop considers the dist dir
+# invalid and silently downloads stock Vencord over your build at launch.
+printf '{}\n' > dist/package.json
+```
+
+Then point Vesktop at the build: Developer Settings → Vencord Location →
+select `.../Vencord/dist`, and fully restart Vesktop.
+
+Verification: `grep -c VesktopVoiceOverlay dist/vencordDesktopRenderer.js`
+and `dist/vencordDesktopMain.js` must both be ≥ 1.
 
 ### Run
 ```bash
@@ -106,35 +129,28 @@ RUST_LOG=debug ./target/release/vesktop-voice-overlay
 
 ## Configuration
 
-Created automatically at `~/.config/vesktop-voice-overlay/config.toml`:
+Runtime behavior is driven by the plugin settings in Vesktop
+(Vencord plugin options: position, custom X/Y, user display, name display,
+avatar size). Changes apply immediately and are replayed automatically after
+any restart.
+
+An optional TOML file at `~/.config/vesktop-voice-overlay/config.toml` is
+read at overlay startup if present — it is **never created or written** by
+the overlay. Currently only the `[socket]` `path` key is honored; the other
+keys (`[overlay]` display defaults, `[appearance]`) are reserved and their
+values are overridden by the plugin settings at connect time:
 
 ```toml
-[overlay]
-position = "top-right"     # top-left, top-right, bottom-left, bottom-right, center, custom
-custom_x = 0
-custom_y = 0
-max_participants = 10
-avatar_size = 28
-user_display = "speaking_only"  # always, speaking_only
-name_display = "speaking_only"   # always, speaking_only, never
-avatar_size_mode = "small"       # small, large
-
-[appearance]
-theme = "auto"             # auto, light, dark
-speaking_pulse_ms = 1000
-show_names = true
+[socket]
+path = "/run/user/1000/vesktop-voice-overlay.sock"   # default: $XDG_RUNTIME_DIR/vesktop-voice-overlay.sock
 ```
-
-These Voice Widget options are also available in Vesktop under Vencord plugin
-settings. Changes apply immediately. Select `Custom coordinates` to use the
-horizontal and vertical offsets from the top-left of the active display.
 
 ## Usage
 
 1. Start the overlay (`systemctl --user start vesktop-voice-overlay` or `./target/release/vesktop-voice-overlay`)
 2. Open Vesktop and join a voice channel
 3. Overlay appears automatically with participant avatars
-4. **Green pulse ring** = currently speaking
+4. **Green ring** = currently speaking (static highlight)
 5. **Your avatar** has a small indicator dot
 
 ## Auto-start (systemd user service)
@@ -184,10 +200,8 @@ vesktop-voice-overlay/
 │   │   ├── index.ts          # Plugin entry point
 │   │   ├── protocol.ts       # Socket protocol types + serialization
 │   │   ├── native.ts         # Node.js socket client (main process, net)
-│   │   ├── socket.ts         # Socket client facade + reconnection
-│   │   ├── snapshot.ts       # Voice state → snapshot builder
-│   │   ├── voiceState.ts     # Vencord voice state accessors
-│   │   └── vencord/api.ts    # Vencord API types
+│   │   ├── resendCache.ts    # Reconnect backoff + settings/snapshot replay
+│   │   └── voiceState.ts     # Vencord voice state accessors
 │   ├── manifest.json         # Vencord manifest
 │   ├── package.json
 │   └── tsconfig.json
@@ -198,7 +212,7 @@ vesktop-voice-overlay/
 │   │   ├── socket_server.rs  # Unix socket server + SO_PEERCRED
 │   │   ├── lifecycle.rs      # Overlay show/hide logic
 │   │   ├── protocol.rs       # Protocol deserialization
-│   │   ├── config.rs         # TOML config + hot-reload
+│   │   ├── config.rs         # Optional TOML config (loaded once at startup)
 │   │   └── ui/               # GTK4 widgets
 │   ├── Cargo.toml
 │   └── build.rs              # Version embedding from git tags
@@ -250,11 +264,13 @@ Client validates, then sends JSON Lines snapshots
 ## Supported Compositors
 
 Tested on wlroots-based Wayland compositors:
-- ✅ **Hyprland** (primary target)
-- ✅ **sway**
-- ✅ **niri**
-- ✅ **wayfire**
-- ⚠️ GNOME/KDE (layer-shell support varies)
+- ✅ **Hyprland** (primary target) — validated end-to-end on Hyprland 0.56
+  with Guild Wars 2 (windowed/borderless): overlay visibility, pointer
+  click-through, game focus, speaking show/hide, avatar sizing
+- ✅ **sway** / **niri** / **wayfire** — expected to work (wlroots
+  layer-shell), not individually validated
+- ⚠️ GNOME/KDE (layer-shell support varies) — untested
+- ⚠️ Multi-monitor placement and exclusive-fullscreen games are untested
 
 ## License
 
