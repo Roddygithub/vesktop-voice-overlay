@@ -4,15 +4,15 @@
 
 | Version | Supported |
 |---------|-----------|
-| 1.0.0   | Yes       |
+| 1.1.0   | Yes       |
+| 1.0.0   | No        |
 
 ## Reporting
 
-Contact the repository owner privately before sharing vulnerability details.
-Do not open an issue containing credentials, Discord tokens, personal
-voice-channel data, or a working exploit. GitHub private vulnerability
-reporting is not enabled while this repository remains private on its current
-account plan.
+Please use GitHub **private vulnerability reporting** (Security → Report a
+vulnerability), which is enabled on this repository. Do not open a public
+issue containing credentials, Discord tokens, personal voice-channel data,
+or a working exploit.
 
 ## Security Model
 
