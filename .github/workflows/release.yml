@@ -15,7 +15,6 @@ permissions: {}
 env:
   RUST_VERSION: '1.97'
   NODE_VERSION: '20'
-  AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
 
 jobs:
   build-overlay:
@@ -143,7 +142,8 @@ jobs:
     permissions:
       contents: read
     runs-on: ubuntu-latest
-    if: env.AUR_SSH_PRIVATE_KEY != ''
+    env:
+      AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
     container:
       image: archlinux:base-devel
       options: --user root
@@ -151,12 +151,19 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
         with:
           fetch-depth: 0
+        if: env.AUR_SSH_PRIVATE_KEY != ''
       
       - name: Download overlay binary
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: vesktop-voice-overlay
           path: artifacts
+        if: env.AUR_SSH_PRIVATE_KEY != ''
+      
+      - name: Extract version
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        if: env.AUR_SSH_PRIVATE_KEY != ''
       
       - name: Calculate source archive SHA256
         id: sha256
@@ -165,10 +172,7 @@ jobs:
           URL="https://github.com/Roddygithub/vesktop-voice-overlay/archive/refs/tags/v${VERSION}.tar.gz"
           SHA256=$(curl -sL "$URL" | sha256sum | cut -d' ' -f1)
           echo "sha256=$SHA256" >> $GITHUB_OUTPUT
-      
-      - name: Extract version
-        id: version
-        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        if: env.AUR_SSH_PRIVATE_KEY != ''
       
       - name: Setup SSH
         run: |
@@ -179,6 +183,7 @@ jobs:
           ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        if: env.AUR_SSH_PRIVATE_KEY != ''
       
       - name: Clone or init AUR repo
         run: |
@@ -191,6 +196,7 @@ jobs:
             git init
             git remote add origin ssh://aur@aur.archlinux.org/vesktop-voice-overlay.git
           fi
+        if: env.AUR_SSH_PRIVATE_KEY != ''
       
       - name: Update PKGBUILD
         run: |
@@ -200,6 +206,7 @@ jobs:
           sed -i "s/pkgver=.*/pkgver=${{ steps.version.outputs.version }}/" PKGBUILD
           sed -i "s/sha256sums=.*/sha256sums=('${{ steps.sha256.outputs.sha256 }}')/" PKGBUILD
           makepkg --printsrcinfo > .SRCINFO
+        if: env.AUR_SSH_PRIVATE_KEY != ''
       
       - name: Commit and push AUR
         run: |
@@ -209,19 +216,15 @@ jobs:
           git add PKGBUILD .SRCINFO
           git commit -m "chore: update AUR to ${{ steps.version.outputs.version }}"
           git push
+        if: env.AUR_SSH_PRIVATE_KEY != ''
       
       - name: Clean up
         run: rm -rf /tmp/vesktop-voice-overlay-aur ~/.ssh/id_ed25519
-
-  update-aur-skip:
-    needs: create-release
-    permissions:
-      contents: read
-    runs-on: ubuntu-latest
-    if: env.AUR_SSH_PRIVATE_KEY == ''
-    steps:
+        if: env.AUR_SSH_PRIVATE_KEY != ''
+      
       - name: Skip AUR update (no SSH key)
         run: |
           echo "AUR_SSH_PRIVATE_KEY not set — skipping AUR publication"
           echo "To enable AUR publishing: add AUR_SSH_PRIVATE_KEY secret and push a tag"
+        if: env.AUR_SSH_PRIVATE_KEY == ''
 
