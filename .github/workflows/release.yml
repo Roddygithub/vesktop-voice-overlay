@@ -214,8 +214,6 @@ jobs:
       - name: Clean up
         run: rm -rf /tmp/vesktop-voice-overlay-aur ~/.ssh/id_ed25519
 
-    permissions:
-      contents: read
   update-aur-skip:
     needs: create-release
     permissions:
