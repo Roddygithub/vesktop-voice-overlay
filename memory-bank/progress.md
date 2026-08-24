@@ -320,3 +320,35 @@ FALLBACK: NOT AVAILABLE
 
 *Projet livré — v1.0.0 — 2026-08-16*
 *Bootstrap COMPLETE — 2026-08-21*
+
+---
+
+## Dependabot triage — 2026-08-25
+
+Triage of the 15 open Dependabot PRs (all major/digest updates that had piled
+up outside the minor/patch groups, capped at 5 per ecosystem).
+
+Merged (CI-proven): thiserror 2.0, dirs 6.0, image 0.25, toml 1.1 (cargo);
+vitest 4.1 (plugin dev); grouped ts-eslint 6.21 pair; codeql-action v3.37.8
+(init+analyze in sync).
+
+Closed: eslint 10 / @typescript-eslint 8 / TS 7 / @types/node 26 (npm majors
+need a deliberate flat-config + toolchain migration; majors now suppressed in
+dependabot.yml); gio/glib solo bumps (gtk-rs core must move in lockstep —
+solo bumps duplicate glib stacks in Cargo.lock); release-path action majors
+(setup-node/cache/download-artifact/gh-release) deferred to next release
+window since PR CI cannot exercise tag-only workflows.
+
+Config (.github/dependabot.yml): npm + github-actions majors ignored via
+wildcard semver-major rule; cargo majors still individual but capped at
+open-pull-requests-limit 3; minor/patch groups unchanged. Security updates
+unaffected (never grouped).
+
+Incidental CI repair (pre-existing breakage, no product change):
+release.yml never loaded on GitHub — duplicate `permissions:` key and
+`env` context used in job-level `if` (unavailable there); AUR job also read
+an undefined `steps.version` output (would have published empty pkgver).
+Fixed by step-level gating + version step ordering. actionlint clean.
+
+Post-triage state: full CI + CodeQL green on main; dependabot now emits one
+grouped minor/patch PR per ecosystem per month.

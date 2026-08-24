@@ -254,6 +254,27 @@ jobs:
 > The `vencord-integration` job is the external compatibility gate.
 > To update the Vencord baseline, change `VENCORD_REV` in `ci.yml` and validate locally.
 
+### Dependency maintenance policy (`.github/dependabot.yml`, 2026-08-25)
+
+```yaml
+# Monthly cadence, one grouped PR per ecosystem for minor+patch.
+npm (/plugin):        minor+patch grouped; semver-major ignored
+cargo (/overlay):     minor+patch grouped; majors individual, limit 3
+github-actions (/.):  minor+patch grouped; semver-major ignored
+```
+
+Rationale:
+- **Majors are suppressed** on npm and Actions until adopted deliberately
+  (eslint ≥9 needs flat-config migration; release-path actions can only be
+  validated during a release window). Security updates are never grouped or
+  ignored — they always arrive individually.
+- **Cargo majors stay individual** but capped: gtk-rs core crates (glib, gio,
+  gtk4, gdk4, libadwaita, gdk-pixbuf) must be bumped **in lockstep** by hand;
+  solo Dependabot bumps of any gtk-rs crate duplicate the glib stack in
+  Cargo.lock and must be rejected.
+- SHA-pinned actions get digest PRs individually (grouping does not apply to
+  them); codeql-action pins must always move init+analyze together.
+
 ## 4. Sécurité & Sandbox
 
 | Mesure | Implémentation |
