@@ -2,6 +2,23 @@
 
 ## Statut Global
 
+## ✅ Release v1.1.0 — 2026-08-24 (Game-ready)
+
+- **Tag** : `v1.1.0` → commit `df4a3b4` (release workflow corrigé : gtk4-layer-shell
+  buildé depuis les sources dans le job `build-overlay` de release.yml)
+- **GitHub Release** : publiée, assets = binaire overlay + plugin tgz 1.1.0
+- **Validation** : Hyprland 0.56 + Guild Wars 2 (visibilité, click-through,
+  focus, speaking show/hide, resize Small=28px/Large=40px mesuré au pixel,
+  recovery restart ≈0,35 s, refus seconde instance)
+- **Fix majeur** : resize avatar (GtkPicture → GtkImage + pixel_size) —
+  GtkPicture se dimensionnait sur la texture téléchargée et ignorait les
+  tailles configurées
+- **AUR** : PKGBUILD/.SRCINFO 1.1.0 validés par build makepkg local complet
+  (build+check+package, binaire 1.1.0, libs résolues, unité embarquée).
+  ⚠️ Publication AUR bloquée : secret `AUR_PUSH_TOKEN` absent ET repo privé
+  (URL d'archive inaccessible anonymement) → décision propriétaire requise
+  (rendre le repo public ou héberger autrement) avant publication AUR.
+
 | Phase | Statut | Progression | Début | Fin Estimée | Notes |
 |-------|--------|-------------|-------|-------------|-------|
 | **P0 - Fondations & Protocole** | 🟢 Terminé | 100% | J+0 | J+3 | Structure monorepo, spec protocole v1, types TS/Rust, CI base |
