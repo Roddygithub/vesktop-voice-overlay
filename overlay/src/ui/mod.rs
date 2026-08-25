@@ -50,6 +50,12 @@ impl OverlayUI {
             _scrolled: scrolled,
         });
 
+        // The scrolled window's min-content sizes give the empty panel a
+        // 236x58 natural box, which would render as an opaque rectangle on
+        // the desktop before the first snapshot arrives. The container only
+        // becomes visible when a snapshot yields visible participant rows.
+        ui.container.set_visible(false);
+
         window.set_child(Some(&ui.container));
 
         Ok(ui)
@@ -57,7 +63,9 @@ impl OverlayUI {
 
     pub fn update_from_snapshot(&self, snapshot: &Snapshot) -> bool {
         *self.last_snapshot.borrow_mut() = Some(snapshot.clone());
-        self.participant_list.update(snapshot)
+        let visible = self.participant_list.update(snapshot);
+        self.container.set_visible(visible);
+        visible
     }
 
     pub fn update_settings(&self, settings: OverlaySettings) -> bool {
@@ -65,10 +73,13 @@ impl OverlayUI {
         // No reset: keyed participant rows are updated in place so settings
         // changes never recreate widgets or re-download avatars. The
         // enabled=false path inside update() still clears rows.
-        self.last_snapshot
+        let visible = self
+            .last_snapshot
             .borrow()
             .as_ref()
-            .is_some_and(|snapshot| self.participant_list.update(snapshot))
+            .is_some_and(|snapshot| self.participant_list.update(snapshot));
+        self.container.set_visible(visible);
+        visible
     }
 
     fn apply_css() {
@@ -79,6 +90,65 @@ impl OverlayUI {
             &gtk4::gdk::Display::default().expect("No display"),
             &provider,
             gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::protocol::{ParticipantSelf, PROTOCOL_VERSION};
+
+    fn snapshot_with_speaking_self(speaking: bool) -> Snapshot {
+        Snapshot {
+            version: PROTOCOL_VERSION,
+            timestamp: 0,
+            self_: ParticipantSelf {
+                user_id: "me".to_string(),
+                username: "Me".to_string(),
+                avatar_url: String::new(),
+                mute: false,
+                deaf: false,
+                speaking,
+            },
+            participants: Vec::new(),
+        }
+    }
+
+    /// Regression guard for the empty-panel rectangle: the scrolled window's
+    /// min-content sizes (220x42) give the empty `.overlay-container` a
+    /// natural box, so a visible container at startup rendered as an opaque
+    /// ~236x58 rectangle on the desktop before Vesktop ever connected. The
+    /// container must stay hidden until a snapshot yields visible rows and
+    /// hide again whenever no participant is visible.
+    #[test]
+    fn container_visibility_tracks_visible_participants() {
+        if gtk4::init().is_err() {
+            eprintln!("skipping: no display available for GTK widget test");
+            return;
+        }
+
+        // Plain unassociated window (no GApplication): creating an
+        // application-owned window before ::startup emits a Gtk-CRITICAL.
+        let window = gtk4::ApplicationWindow::builder().build();
+        // is_visible() accounts for ancestors: mark the window visible so the
+        // assertions reflect the container's own visibility flag.
+        window.present();
+        let ui = OverlayUI::new(&window, &Config::default()).expect("ui builds");
+
+        assert!(
+            !ui.container.is_visible(),
+            "empty overlay must not render before the first snapshot"
+        );
+
+        // Default user_display is speaking_only: a speaking self is visible.
+        assert!(ui.update_from_snapshot(&snapshot_with_speaking_self(true)));
+        assert!(ui.container.is_visible());
+
+        assert!(!ui.update_from_snapshot(&snapshot_with_speaking_self(false)));
+        assert!(
+            !ui.container.is_visible(),
+            "container must hide when no participant is visible"
         );
     }
 }

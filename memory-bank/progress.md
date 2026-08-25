@@ -2,6 +2,27 @@
 
 ## Statut Global
 
+## ✅ Fix panneau vide au démarrage — 2026-08-25 (post-release v1.1.0)
+
+- **Symptôme** : rectangle noir opaque ~236×58 px ancré en haut à droite dès le
+  login (avant tout lancement de Vesktop), permanent.
+- **Cause racine** : `window.present()` au démarrage (main.rs) garde le process
+  vivant, mais le `ScrolledWindow` impose `min_content_width(220)` /
+  `min_content_height(42)` (ui/mod.rs) → le `.overlay-container`
+  (`alpha(#111214, 0.88)`, style.css) garde une boîte naturelle 236×58 même
+  totalement vide, et le panneau sombre se rendait tel quel sur le bureau.
+- **Fix** : `container.set_visible(false)` à la construction de `OverlayUI` ;
+  `update_from_snapshot` / `update_settings` basculent la visibilité du
+  conteneur sur le booléen retourné (conteneur visible ⇔ participants visibles).
+- **Test régression** : `ui::tests::container_visibility_tracks_visible_participants`
+  (GTK-gated, skip gracieux sans display ; fenêtre non associée à
+  GApplication pour éviter le Gtk-CRITICAL pre-startup, `window.present()` car
+  `is_visible()` tient compte des ancêtres). 29/29 tests OK, fmt + clippy OK.
+- **Déploiement local** : binaire release recopié vers `~/.local/bin/`
+  (stop service → cp → start, sinon « Text file busy »), service redémarré.
+  `hyprctl layers` : surface gtk4-layer-shell désormais `a: 0` (transparente),
+  capture grim confirme plus rien de visible, click-through conservé.
+
 ## ✅ Release v1.1.0 — 2026-08-24 (Game-ready)
 
 - **Tag** : `v1.1.0` → commit `df4a3b4` (release workflow corrigé : gtk4-layer-shell
