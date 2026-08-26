@@ -40,6 +40,9 @@ window.background,
     background-color: alpha(#111214, 0.88);
     border-radius: 10px;
     padding: 6px 8px;
+    border: 0;
+    outline: none;
+    box-shadow: none;
 }
 
 .overlay-scrolled {
