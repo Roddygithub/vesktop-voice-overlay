@@ -47,6 +47,26 @@ window.background,
     box-shadow: none;
 }
 
+/* GtkScrolledWindow and GtkListBox own intermediary CSS nodes.  On Adwaita
+   they may paint a card even when the outer container is transparent.  Keep
+   every structural node transparent; only .participant-name owns a backdrop. */
+.vesktop-voice-overlay > box,
+.overlay-container > scrolledwindow,
+.overlay-container scrolledwindow > viewport,
+.overlay-container list,
+.participant-list,
+.participant-list > row,
+.participant-list > row > box,
+.participant-row,
+.participant-row > box {
+    background-color: transparent !important;
+    background-image: none !important;
+    background: transparent !important;
+    border: 0 !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
 .overlay-scrolled {
     background-color: transparent;
     min-width: 220px;
