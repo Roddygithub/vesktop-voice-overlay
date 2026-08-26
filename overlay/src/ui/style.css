@@ -1,15 +1,21 @@
 /* Discord-inspired Voice Widget */
 
-/* The window and scroll container stay transparent (layer-shell surface). */
+/* The window and scroll container stay transparent (layer-shell surface).
+   Borders, outlines and shadows are explicitly zeroed: GTK themes otherwise
+   draw a frame around the panel, which a borderless layer-shell overlay
+   never asked for. Avatar rings and name-pill borders set their own. */
 window.vesktop-voice-overlay,
 .vesktop-voice-overlay,
 scrolledwindow.overlay-scrolled,
 scrolledwindow.overlay-scrolled > viewport,
-.participant-list {
+.participant-list,
+.overlay-container {
     background-color: transparent;
+    border: 0;
+    outline: none;
+    box-shadow: none;
 }
 
-/* Semi-transparent dark panel: readable over any game background. */
 .overlay-container {
     background-color: alpha(#111214, 0.88);
     border-radius: 10px;
