@@ -37,7 +37,9 @@ window.background,
 }
 
 .overlay-container {
-    background-color: alpha(#111214, 0.88);
+    /* Rows carry their own name pill; a panel background leaves an unwanted
+       black rectangle around sparse overlays. */
+    background-color: transparent;
     border-radius: 10px;
     padding: 6px 8px;
     border: 0;
