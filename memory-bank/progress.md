@@ -2,6 +2,16 @@
 
 ## Statut Global
 
+## ✅ Suppression du cadre GTK autour des participants — 2026-08-26
+
+- **Cause racine** : GTK CSS ne prend pas en charge `!important`. Les resets de
+  transparence étaient rejetés avec `Theme parser error`, laissant Adwaita
+  peindre le fond de la fenêtre, du viewport et des rows.
+- **Fix** : provider CSS à priorité 800, sans `!important`, conteneur et nœuds
+  structurels transparents ; seul le pill du nom conserve un fond.
+- **Validation** : aucun `Theme parser error` après redémarrage, 29/29 tests
+  Rust passent, binaire release déployé dans `~/.local/bin/`.
+
 ## ✅ Fix panneau vide au démarrage — 2026-08-25 (post-release v1.1.0)
 
 - **Symptôme** : rectangle noir opaque ~236×58 px ancré en haut à droite dès le

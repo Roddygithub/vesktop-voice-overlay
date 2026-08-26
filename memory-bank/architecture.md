@@ -48,6 +48,9 @@ GTK context.
 The Voice Widget uses a transparent layer-shell window and scrolled viewport;
 each visible participant owns its compact translucent row. This prevents GTK
 theme backgrounds from producing a second opaque card around the widget.
+The application CSS provider runs at priority 800, above the GTK theme. GTK
+CSS does not support browser-style `!important`; using it causes the affected
+declarations to be rejected with theme parser errors.
 
 Discord avatars are decoded as RGBA and passed directly to GdkPixbuf. Avoiding
 the Cairo ARGB32 intermediate prevents channel-order swaps on little-endian
