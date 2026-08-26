@@ -1,19 +1,39 @@
 /* Discord-inspired Voice Widget */
 
-/* The window and scroll container stay transparent (layer-shell surface).
-   Borders, outlines and shadows are explicitly zeroed: GTK themes otherwise
-   draw a frame around the panel, which a borderless layer-shell overlay
-   never asked for. Avatar rings and name-pill borders set their own. */
+/* Reset: kill every Adwaita frame/border/shadow on the layer-shell surface.
+   Priority 800 beats Adwaita's APPLICATION priority (600). */
+window,
 window.vesktop-voice-overlay,
+applicationwindow,
 .vesktop-voice-overlay,
 scrolledwindow.overlay-scrolled,
 scrolledwindow.overlay-scrolled > viewport,
 .participant-list,
-.overlay-container {
-    background-color: transparent;
-    border: 0;
-    outline: none;
-    box-shadow: none;
+.headerbar,
+.titlebar,
+.decoration {
+    background-color: transparent !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-width: 0 !important;
+    outline: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    min-height: 0 !important;
+}
+
+/* The real fix: force the GdkSurface background to transparent.
+   Adwaita draws a window background via the "view" CSS node which our
+   selectors above may not reach. Target it explicitly. */
+window.background,
+.background {
+    background-color: transparent !important;
+    background-image: none !important;
+    background: transparent !important;
+    border: 0 !important;
+    outline: none !important;
+    box-shadow: none !important;
 }
 
 .overlay-container {
