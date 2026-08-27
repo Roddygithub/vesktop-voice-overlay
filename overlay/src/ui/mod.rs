@@ -93,10 +93,9 @@ impl OverlayUI {
             800, // above Adwaita's APPLICATION priority (600)
         );
         // Window-level provider: ensures the window node itself is themed
-        window.style_context().add_provider(
-            &provider,
-            gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
-        );
+        window
+            .style_context()
+            .add_provider(&provider, gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION);
     }
 }
 

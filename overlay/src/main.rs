@@ -10,15 +10,48 @@ use clap::Parser;
 use gtk4::gio;
 use gtk4::prelude::*;
 use gtk4::Application;
+use std::panic;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::{error, info};
+use tracing_subscriber::prelude::*;
 
 use crate::config::Config;
 use crate::layer_shell::{create_layer_shell_window, update_position};
 use crate::lifecycle::{OverlayCommand, OverlayLifecycle};
 use crate::socket_server::SocketServer;
 use crate::ui::OverlayUI;
+
+fn install_panic_hook() {
+    panic::set_hook(Box::new(|info| {
+        let thread = std::thread::current();
+        let thread_name = thread.name().unwrap_or("<unnamed>");
+
+        let location = info
+            .location()
+            .map(|loc| format!("{}:{}:{}", loc.file(), loc.line(), loc.column()))
+            .unwrap_or_else(|| "<unknown location>".to_string());
+
+        let payload = info.payload();
+        let message = if let Some(s) = payload.downcast_ref::<&str>() {
+            *s
+        } else if let Some(s) = payload.downcast_ref::<String>() {
+            s.as_str()
+        } else {
+            "<non-string panic payload>"
+        };
+
+        let mut backtrace_str = String::new();
+        if std::env::var("RUST_BACKTRACE").is_ok() || std::env::var("RUST_LIB_BACKTRACE").is_ok() {
+            backtrace_str = format!("\n{:?}", std::backtrace::Backtrace::capture());
+        }
+
+        eprintln!(
+            "PANIC in thread '{}': {}\n  at {}{}",
+            thread_name, message, location, backtrace_str
+        );
+    }));
+}
 
 #[derive(Parser, Debug)]
 #[command(
@@ -36,6 +69,8 @@ struct Args {
 }
 
 fn main() -> Result<()> {
+    install_panic_hook();
+
     let args = Args::parse();
 
     if args.version {
@@ -182,9 +217,12 @@ fn init_logging(debug: bool) {
         "info,vesktop_voice_overlay=debug"
     };
 
-    tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .with_target(false)
-        .compact()
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::EnvFilter::new(filter))
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_target(false)
+                .compact(),
+        )
         .init();
 }
