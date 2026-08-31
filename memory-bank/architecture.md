@@ -8,6 +8,61 @@
   package, and repository identifiers remain unchanged. Renaming those values
   would risk breaking existing settings, clients, or installations.
 
+## Installer Architecture (Candidate v1.3.0)
+
+- The installer is a user-run Bash manager with `install`, `update`, `repair`,
+  `status`, `doctor`, and `uninstall` commands plus `--client`, `--dry-run`,
+  and `--yes` options.
+- Overlay releases are downloaded to the user-owned
+  `~/.local/share/discord-voice-overlay/` tree and verified against the tagged
+  `SHA256SUMS`; an existing package-owned or local binary is never overwritten.
+- The managed Vencord checkout lives under the same user-owned data tree, is
+  cloned from the official repository at the pinned revision above, and is
+  atomically rebuilt before replacing the prior managed checkout.
+- Vesktop integration changes only its `state.json` `vencordDir` field after
+  backing up the file. A different existing custom Vencord path requires
+  explicit consent and is restorable; arbitrary source trees are never edited.
+- Discord integration uses the pinned Vencord `scripts/runInstaller.mjs` wrapper
+  with the official CLI's explicit `--install`/`--uninstall -location` arguments
+  after checking the native target and requiring explicit consent. Existing
+  injected targets are treated as foreign and are not adopted.
+- A human-readable installer state file records ownership, selected client,
+  managed paths, revision, integration method, and rollback metadata. It never
+  stores tokens, credentials, messages, or voice data.
+- State and managed paths are validated before mutation or removal; symlinked
+  state, service, client, and managed paths are rejected, and release redirects
+  are restricted to HTTPS.
+- A live foreign Discord injection is a deliberate stop condition: the manager
+  does not provide silent adoption, and acceptance must use a clean target or a
+  future explicit migration workflow.
+- The current installer candidate must invoke the official Vencord CLI with an
+  explicit target for non-interactive operation and must write an absolute
+  executable path in `ExecStart`; these are acceptance-blocking requirements.
+- Vencord persists renderer plugin state as JSON at
+  `<XDG_CONFIG_HOME>/Vencord/settings/settings.json`; native Discord and
+  Vesktop share this default location. The installer structurally enables only
+  `plugins.VesktopVoiceOverlay.enabled`, writes atomically, and restores its
+  attributable backup only when the file is unchanged.
+- Live acceptance confirmed the enabled settings are consumed by native
+  Discord: the renderer started `VesktopVoiceOverlay`, and the managed overlay
+  accepted the same-user client connection and initial messages.
+- Human voice acceptance confirmed correct overlay visibility and speaking
+  state for both the local user and another participant. The internal plugin
+  name shown in Vencord's Plugins UI is a deferred naming/UX follow-up and is
+  intentionally unchanged during this lifecycle.
+- The complete live lifecycle passed: repair, update, uninstall, clean
+  reinstall, final uninstall, and legacy-service restoration. Runtime changes
+  to shared Vencord settings were preserved rather than attributed back to the
+  installer; the original settings snapshot remains available in the approved
+  rollback bundle.
+- The v1.3.0 release metadata is aligned across the installer, overlay, plugin,
+  lockfiles, and AUR template. The release workflow remains tag-driven and
+  validates package versions, pinned Vencord discovery, release builds, and
+  checksums; AUR publication is conditional on its existing secret.
+- The user service is installed only at
+  `~/.config/systemd/user/vesktop-voice-overlay.service`; package/system units
+  and conflicting user units are left untouched.
+
 ## Runtime Data Path
 
 ```text

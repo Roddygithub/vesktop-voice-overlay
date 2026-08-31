@@ -2,6 +2,156 @@
 
 ## Statut Global
 
+## Universal Installer Candidate — 2026-08-31
+
+### Clean-target acceptance — blocked
+
+- A real alternate native Discord profile was proven representative for
+  per-profile application resources, but cannot exercise this candidate's user
+  service path because the running systemd user manager is bound to the normal
+  XDG configuration directory.
+- With explicit approval, a rollback bundle was created at
+  `/home/roddy/.cache/dvo-clean-target-rollback`, containing only Discord
+  application resources, the Vesktop state file, overlay binary, and legacy
+  service files. It was verified byte-for-byte before mutation.
+- The official Vencord CLI restored the live Discord target cleanly. The real
+  installer then downloaded and checksum-verified the v1.2.1 overlay, cloned
+  Vencord at revision `ef29bbeb6119cfb53d1273ed78147bcc97d91261`, built the
+  plugin, and created the managed service.
+- Installation blocked on two genuine defects: `pnpm inject` invokes the
+  interactive official selector despite `--yes` and `DISCORD_USER_DATA_DIR`,
+  and `systemd-escape --path` generated a non-absolute `ExecStart`, causing
+  service auto-restart. Discord injection and installer state publication did
+  not complete.
+- The partial managed tree was removed through the candidate ownership guard.
+  Original Discord resources, Vesktop state, overlay, service, and drop-in were
+  restored byte-for-byte; the legacy service is enabled and running. No human
+  voice test was attempted.
+
+### Corrected installer retest — blocked by clean-user plugin default
+
+- The pinned CLI syntax was verified from its help output as
+  `-install`/`-uninstall` with `-location <Discord app directory>`. The
+  installer now invokes that official wrapper directly for install, rollback,
+  client switching, and uninstall; no interactive selector appeared during the
+  corrected live install.
+- Service generation now quotes an absolute executable path for systemd
+  `ExecStart`. The generated live unit passed `systemd-analyze verify`, started
+  successfully, remained running with `NRestarts=0`, and exposed the overlay
+  socket.
+- Real corrected install completed checksum verification, pinned Vencord clone
+  and build, official Discord injection, state publication, service startup,
+  native Discord startup, and status/doctor checks.
+- Clean-user runtime validation found the pinned Vencord default
+  `VesktopVoiceOverlay.enabled=false`; the plugin therefore did not start or
+  connect to the overlay socket. No manual settings edit was made because it is
+  outside the requested two fixes.
+- The corrected managed uninstall path was exercised after the runtime block;
+  the official uninject path still requires the same explicit target and the
+  original Discord resources, Vesktop state, overlay, service, and drop-in were
+  restored byte-for-byte. The legacy service is enabled and running.
+
+### Managed plugin enablement — automated validation passed
+
+- Pinned Vencord source confirms renderer settings are JSON at
+  `<XDG_CONFIG_HOME>/Vencord/settings/settings.json`; plugin state is keyed by
+  the preserved internal name `VesktopVoiceOverlay`, defaults to disabled, and
+  has no installer-facing CLI setter.
+- The installer now performs a structural, atomic update of only
+  `plugins.VesktopVoiceOverlay.enabled`, preserves unknown/unrelated settings,
+  backs up attributable prior content, restores it conservatively on uninstall,
+  and rolls it back on failed unpublished installs.
+- Fixture coverage passes for disabled/missing/malformed settings, unrelated
+  enabled/disabled plugins, custom plugin settings, repair, idempotence,
+  uninstall preservation, foreign integration refusal, explicit Discord CLI
+  targeting, and absolute systemd `ExecStart` validation.
+- Full Rust and plugin gates pass again; ShellCheck remains unavailable locally.
+- The refreshed rollback bundle includes the current Vencord settings file and
+  matches the current known-good Discord, Vesktop, overlay, and service files
+  byte-for-byte before live mutation.
+- Approved clean-target live install now completed with automatic plugin
+  enablement. The actual settings file shows `enabled: true` while all other
+  settings remain semantically identical to the rollback copy; ownership
+  metadata matches the managed hash.
+- Native Discord was started against the patched target. Its renderer log shows
+  `Starting plugin VesktopVoiceOverlay`; the overlay journal shows a UID-valid
+  client connection, settings update, and clear message. The Unix socket is
+  established and the service remains active with `NRestarts=0`.
+- Human voice acceptance passed: the overlay appeared correctly, self speaking
+  state worked, and another participant's speaking state worked.
+- Deferred UX follow-up: the Vencord Plugins UI displays the internal plugin
+  name `VesktopVoiceOverlay` instead of the public product name `Discord Voice
+  Overlay`. Do not change this during the current acceptance or rollback
+  lifecycle; address it separately as a naming/UX task.
+- Lifecycle repair and update both completed idempotently while installed.
+  Uninstall completed through the official explicit-target uninject path and
+  removed the managed tree, state, and service. Vencord had persisted plugin
+  settings during runtime (including user-facing plugin options), so the
+  conservative ownership guard correctly warned and preserved the changed
+  settings rather than overwriting them.
+- Clean reinstall completed after uninstall, including a fresh pinned Vencord
+  build, automatic reuse of the already-enabled plugin setting, official
+  Discord injection, and successful final uninstall. The original legacy
+  service was restored and is active with zero restarts; Discord resources,
+  Vesktop state, overlay binary, service unit, and managed paths passed final
+  restoration checks.
+- Final automated gates pass: installer fixtures, Rust format/Clippy/tests,
+  plugin lint/tests (`25/25`), and npm audit (`0` vulnerabilities). The plugin
+  test was rerun with `TMPDIR` on the home filesystem because the machine's
+  unrelated `/tmp` tmpfs was full.
+- Final-state caveat: shared Vencord settings remain changed and
+  `VesktopVoiceOverlay.enabled` remains true because runtime/plugin settings
+  changed after installation; the installer intentionally preserved them under
+  its conservative ownership rule. The original settings copy remains in the
+  approved rollback bundle for an explicit follow-up decision.
+
+### v1.3.0 release preparation — local gates passed
+
+- Release metadata is aligned at `1.3.0` for the installer, overlay binary,
+  plugin package, lockfiles, AUR template metadata, and installer fixture.
+  Historical v1.2.1 records and compatibility-sensitive identifiers remain
+  unchanged.
+- Changelog and installer documentation now describe the universal native Arch
+  manager, supported commands, ownership behavior, limitations, and deferred
+  AUR publication. The Vencord UI naming follow-up remains documentation-only.
+- Final local checks pass: `bash -n`, all installer fixtures, Rust fmt/Clippy
+  with warnings denied, `39/39` Rust tests, release and release-debug builds,
+  binary version `1.3.0`, plugin `npm ci`/lint/tests (`25/25`)/audit (`0`),
+  package dry-run, and generated systemd verification.
+- ShellCheck is unavailable locally and remains a required GitHub CI gate. The
+  release workflow's pinned Vencord build/discovery validation remains required
+  on the tag workflow; the same pinned build and plugin discovery were already
+  proven during live acceptance.
+
+- Reconciled release baseline `v1.2.1` at
+  `61e3e2ae4135acd9eff55bf2a3a15fb4677d3f33`; the existing tag points at the
+  release commit. Installer candidate changes remain uncommitted by request.
+- Native Arch packages detected locally: Vesktop `1.6.7-1` and Discord
+  `1:1.0.155-1`.
+- The local Vesktop `state.json` points at an existing custom Vencord checkout;
+  the local Discord target contains an existing injected POC. Both are foreign
+  integrations for installer purposes and must not be silently replaced.
+- The installer design uses a user-owned managed Vencord checkout, verified
+  release artifacts, a user systemd unit, explicit state, and safe client
+  selection. No live client mutation has been performed for this candidate.
+- Installer fixture validation passes after lifecycle, idempotence, client
+  selection, foreign integration, checksum, failure rollback, state, and
+  recursive-deletion guard coverage. `bash -n` also passes; local ShellCheck is
+  unavailable and is configured in CI.
+- Existing project validation still passes: Rust format check, Clippy with
+  warnings denied, `39/39` Rust tests; plugin lint, `25/25` tests, and npm audit
+  with zero vulnerabilities.
+- Live `status` and `doctor` were run without mutation. Both native clients and
+  the existing active user service were detected; no installer-owned state was
+  adopted.
+- Live Discord install classification was exercised with the real candidate;
+  it refused the existing foreign `_app.asar` injection before any mutation.
+  `update` refused the ambiguous no-state dual-client case and `repair` refused
+  the absent installer state. Post-check hashes confirm Discord resources,
+  Vesktop state, overlay, service files, and repository candidate files were
+  unchanged. Human voice validation is deferred because forcing adoption would
+  require manually destroying the known-good POC.
+
 ## v1.2.1 Release Candidate Validation — 2026-08-31
 
 - Public branding is now **Discord Voice Overlay**; the persisted plugin name,

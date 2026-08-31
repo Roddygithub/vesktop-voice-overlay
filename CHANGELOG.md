@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-08-31
+
+### Added
+- Universal user-level installer and manager for native Arch Linux clients.
+- Install, update, repair, status, doctor, and uninstall commands with explicit
+  Vesktop or Discord client selection when both are installed.
+- Managed pinned Vencord builds, checksum-verified overlay downloads, and
+  automatic enablement of the `VesktopVoiceOverlay` plugin.
+- Explicit-target Discord Desktop integration through Vencord's official
+  injector and conservative ownership checks for Vesktop and Discord state.
+
+### Changed
+- Added installer fixture coverage and CI ShellCheck validation.
+- Documented the supported installer workflow, ownership model, recovery rules,
+  and native-client limitations.
+
+### Limitations
+- Flatpak, AppImage, arbitrary custom installations, and foreign/custom Vencord
+  or Discord integrations are detected or refused rather than adopted.
+- The plugin remains a Vencord source userplugin built from the pinned source;
+  the release `.tgz` is not directly installable through Vesktop.
+- The AUR template remains unpublished; AUR publication is deferred.
+
 ## [1.2.1] - 2026-08-31
 
 ### Fixed

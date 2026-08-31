@@ -43,6 +43,36 @@ A lightweight, highly responsive, **Wayland-native (layer-shell)** overlay that 
 
 ## Installation
 
+### Installer (Arch Linux / Omarchy)
+
+The supported one-command setup manages the overlay and one native Vencord
+client without changing pacman packages or requiring root:
+
+```bash
+git clone https://github.com/Roddygithub/vesktop-voice-overlay.git
+cd vesktop-voice-overlay
+./install.sh
+```
+
+Use `./install.sh --client discord` or `./install.sh --client vesktop` when
+both clients are installed. The manager keeps its Vencord checkout and overlay
+under `~/.local/share/discord-voice-overlay/`, verifies release checksums,
+enables only the managed `VesktopVoiceOverlay` plugin in Vencord settings, and
+preserves `~/.config/vesktop-voice-overlay/config.toml`.
+
+```bash
+./install.sh status
+./install.sh doctor
+./install.sh update
+./install.sh repair
+./install.sh uninstall
+```
+
+Flatpak, AppImage, arbitrary custom installations, and existing foreign custom
+Vencord/injected setups are detected or rejected safely; see
+[`docs/installer.md`](docs/installer.md). `--dry-run` shows changes without
+modifying client, service, or overlay state.
+
 ### Quick Start (Arch Linux / Hyprland)
 
 ```bash

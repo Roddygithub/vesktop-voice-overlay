@@ -43,6 +43,7 @@ jobs:
             pkg-config \
             build-essential \
             meson \
+            shellcheck \
             ninja-build \
             libwayland-dev \
             wayland-protocols \
@@ -90,6 +91,13 @@ jobs:
       - name: Test plugin
         working-directory: ./plugin
         run: npm test
+
+      - name: Validate installer
+        working-directory: .
+        run: |
+          bash -n install.sh tests/installer_test.sh
+          shellcheck install.sh tests/installer_test.sh
+          tests/installer_test.sh
 
   vencord-integration:
     needs: lint-and-test

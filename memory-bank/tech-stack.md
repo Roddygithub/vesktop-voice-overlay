@@ -87,3 +87,11 @@ GNOME/KDE support is not claimed.
 - a supported end-user plugin distribution channel beyond custom Vencord
   source builds;
 - automated real Discord voice-call testing.
+
+## Installer Candidate
+
+The v1.3.0 installer candidate is a Bash user-level manager. It uses the
+standard `git`, `pnpm`, `curl`, `sha256sum`, `node`, and `systemctl --user`
+commands; it does not put Vencord or Discord mutation into pacman hooks. The
+managed Vencord revision remains
+`ef29bbeb6119cfb53d1273ed78147bcc97d91261`.

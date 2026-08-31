@@ -1,6 +1,6 @@
 # Maintainer: Roddy <rod@rod.sh>
 pkgname=vesktop-voice-overlay
-pkgver=1.2.1
+pkgver=1.3.0
 pkgrel=1
 pkgdesc="Wayland-native voice activity overlay for Discord Desktop and Vesktop"
 arch=(x86_64)
