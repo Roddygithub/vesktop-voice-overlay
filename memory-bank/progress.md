@@ -134,6 +134,11 @@
 - The next CI run confirmed source following and reduced the last failure to
   the directive's relative path. It now points to the checkout-root
   `install.sh`, matching the CI working directory.
+- The resulting CI run failed in the installer fixture rather than the
+  installer: its mock `node` wrapper delegated to `/usr/bin/node`, which is
+  not the setup-node location on GitHub runners. The fixture now captures the
+  runner-provided Node path before prepending its mock directory to `PATH`;
+  local syntax and all installer cases pass with the portable delegation.
 
 - Reconciled release baseline `v1.2.1` at
   `61e3e2ae4135acd9eff55bf2a3a15fb4677d3f33`; the existing tag points at the

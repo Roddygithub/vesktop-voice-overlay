@@ -206,6 +206,9 @@ registered. The AUR job uses the required `master` branch and includes the
 package-source license, but it cannot create an unregistered AUR package; first
 publication requires AUR registration plus the maintainer SSH key. No workflow
 publishes without a pushed tag.
+- Installer fixture mocks delegate non-fixture JavaScript execution to the
+  runner's discovered Node executable, avoiding assumptions about setup-node's
+  filesystem location.
 
 ## Dependency Maintenance
 

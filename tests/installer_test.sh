@@ -16,6 +16,9 @@ assert_not_file() { [[ ! -e "$1" && ! -L "$1" ]] || fail "unexpected file: $1"; 
 assert_contains() { grep -Fq -- "$1" "$2" || fail "missing '$1' in $2"; }
 assert_not_contains() { ! grep -Fq -- "$1" "$2" || fail "unexpected '$1' in $2"; }
 
+REAL_NODE=$(command -v node) || fail 'node is required for installer fixtures'
+export DVO_REAL_NODE="$REAL_NODE"
+
 cat > "$MOCK_BIN/pnpm" <<'EOF'
 #!/usr/bin/env bash
 set -Eeuo pipefail
@@ -59,7 +62,7 @@ if [[ "${1:-}" == scripts/runInstaller.mjs ]]; then
     printf 'managed injector\n' > "$resources/app.asar"
     exit 0
 fi
-exec /usr/bin/node "$@"
+exec "$DVO_REAL_NODE" "$@"
 EOF
 chmod 755 "$MOCK_BIN/node"
 
