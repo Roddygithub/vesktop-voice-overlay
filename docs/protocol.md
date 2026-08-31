@@ -3,9 +3,10 @@
 ## Transport
 
 - **Type**: Unix Domain Socket (AF_UNIX, SOCK_STREAM)
-- **Path**: $XDG_RUNTIME_DIR/vesktop-voice-overlay.sock (fallback: /tmp/vesktop-voice-overlay-$UID.sock)
+- **Path**: `$XDG_RUNTIME_DIR/vesktop-voice-overlay.sock`; the plugin fails
+  closed when the runtime directory is unavailable
 - **Permissions**: 0700 (user-only), validated via SO_PEERCRED (UID match)
-- **Protocol**: JSON Lines (one snapshot per line) with version header
+- **Protocol**: JSON Lines (one client message per line) with version header
 
 ## Handshake
 
@@ -130,6 +131,19 @@ Validation (invalid settings messages are dropped):
 - `name_display`: `speaking_only` | `always` | `never`
 - `avatar_size_mode`: `small` | `large` (rendered as 28 px / 40 px)
 
+## Clear Message
+
+Leaving a voice channel is an authoritative state transition. The plugin sends
+the following message so the overlay removes all rows immediately instead of
+retaining the last snapshot:
+
+```json
+{"type":"clear"}
+```
+
+The clear replaces the cached snapshot and is replayed after reconnects until
+the plugin produces a new channel snapshot.
+
 ## Versioning Strategy
 
 - Header: `VESKTOP_VOICE_OVERLAY/1.0\n`
@@ -143,18 +157,18 @@ Validation (invalid settings messages are dropped):
 ### Plugin (Client)
 - Reconnect backoff: 500 ms doubling, capped at **2 s** (500 ms, 1 s, 2 s,
   2 s, …), unlimited retries while the plugin is enabled
-- Outgoing lines are queued while disconnected (queue capped at 100) and
-  flushed after the handshake
-- The latest settings line and the latest snapshot line are cached and
+- The latest settings and voice-state lines are coalesced while disconnected
+  and under connected-socket backpressure; the total pending queue is capped at
+  100 lines without evicting authoritative state
+- The latest settings line and the latest snapshot-or-clear line are cached and
   **replayed automatically right after the handshake**, so the overlay is
   repopulated without waiting for new voice activity
 
 ### Overlay (Server)
-- Single listener; accepts **multiple concurrent connections** (one thread
-  each). The last settings/snapshot received wins; any client may keep
-  sending
-- On client disconnect: overlay hides after a short grace delay unless
-  another client is connected
+- Single listener; accepts **one connection** and rejects additional clients so
+  displayed state cannot outlive the client that authored it
+- On client disconnect: overlay clears and hides after a short grace delay
+  unless the client reconnects
 - Validate SO_PEERCRED UID matches current user
 
 ## Security
@@ -162,8 +176,10 @@ Validation (invalid settings messages are dropped):
 - Socket file mode 0700, owned by user
 - SO_PEERCRED validation: reject connections from different UID
 - No network exposure (AF_UNIX only)
-- Payload size limit: 64KB per snapshot (prevent DoS)
+- Payload size limit: 64KB per line; oversized lines are consumed without
+  retaining attacker-controlled bytes and parsing resumes at the next line
 - JSON schema validation on deserialize (reject malformed)
+- Parse errors log byte counts only, never payload prefixes
 
 ## Example Session
 

@@ -1,5 +1,11 @@
 # Implementation Plan — Vesktop Voice Overlay
 
+> Historical planning document. Checkboxes and acceptance criteria below are
+> goals, not evidence of current implementation. Use `README.md`,
+> `memory-bank/architecture.md`, and the validation results for current truth.
+> In particular, Vencord does not directly install this project's npm `.tgz`;
+> the plugin currently requires a custom source build.
+
 ## Vue d'Ensemble Phases
 
 | Phase | Focus | Durée Est. | Livrable |

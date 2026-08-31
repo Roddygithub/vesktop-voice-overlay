@@ -1,12 +1,22 @@
 {
   "name": "vesktop-voice-overlay-plugin",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Vencord plugin for Vesktop Voice Overlay",
   "main": "src/index.ts",
+  "files": [
+    "src/index.ts",
+    "src/native.ts",
+    "src/protocol.ts",
+    "src/resendCache.ts",
+    "src/voiceState.ts",
+    "LICENSE"
+  ],
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint src --ext .ts"
+    "lint": "eslint src --ext .ts",
+    "prepack": "cp ../LICENSE LICENSE",
+    "postpack": "rm LICENSE"
   },
   "keywords": ["vencord", "vesktop", "voice", "overlay"],
   "author": "Roddy",

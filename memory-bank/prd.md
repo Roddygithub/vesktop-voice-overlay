@@ -13,7 +13,7 @@ Les utilisateurs de Vesktop (client Discord basé sur Vencord) sur Wayland/Hyprl
 |---------|---------|
 | **Gamer Hyprland** | Overlay natif Wayland, click-through, visible en plein écran jeu |
 | **Développeur/Privacy** | Pas de token Discord, pas de self-bot, code auditable |
-| **Utilisateur Vesktop/Vencord** | Installation simple via Vencord plugin store, pas de config manuelle |
+| **Utilisateur Vesktop/Vencord** | Installation simple; currently blocked on a supported Vencord distribution channel |
 
 ## 3. Portée Initiale (MVP)
 
@@ -35,7 +35,7 @@ Les utilisateurs de Vesktop (client Discord basé sur Vencord) sur Wayland/Hyprl
 - [ ] Speaking indicator temps réel (< 100ms latence)
 - [ ] Fonctionne sur jeu plein écran XWayland (Hyprland)
 - [ ] Zéro token Discord lu/stocké/transmis
-- [ ] Installation en 2 étapes max (AUR + Vencord plugin)
+- [ ] Installation en 2 étapes max (not met: custom Vencord source build required)
 - [ ] Reconnection < 2s après restart Vesktop/overlay
 
 ## 5. Hors Périmètre (v1)
@@ -52,7 +52,7 @@ Les utilisateurs de Vesktop (client Discord basé sur Vencord) sur Wayland/Hyprl
 |------------|--------|
 | **Sécurité** | Aucun token Discord, aucun self-bot, aucune connexion Gateway |
 | **Architecture** | Plugin Vencord (renderer) → Unix socket → Overlay (GTK4/layer-shell) |
-| **Distribution** | **Monorepo source** → **Distribution séparée** : AUR (overlay binaire) + Vencord plugin store (plugin TS) |
+| **Distribution** | **Monorepo source** → unpublished AUR template + Vencord source userplugin |
 | **Compatibilité** | Wayland natif (layer-shell), wlroots compositors (Hyprland, sway, niri, etc.) |
 | **Licence** | GPL-3.0 (compatibilité Discover Overlay, Vencord, Vesktop) |
 | **Versioning** | Un tag Git = plugin + overlay compatibles (protocole socket versionné) |
@@ -64,7 +64,6 @@ Les utilisateurs de Vesktop (client Discord basé sur Vencord) sur Wayland/Hyprl
 vesktop-voice-overlay/
 ├── plugin/           # Vencord plugin (TypeScript)
 │   ├── src/
-│   ├── manifest.json
 │   └── package.json
 ├── overlay/          # Overlay GTK4/layer-shell (Rust)
 │   ├── Cargo.toml
@@ -72,19 +71,19 @@ vesktop-voice-overlay/
 ├── packaging/
 │   └── aur/          # PKGBUILD pour AUR
 └── .github/workflows/
-    └── release.yml   # CI: build overlay + plugin zip + AUR package
+    └── release.yml   # CI: validate/build release + optional AUR publication
 ```
 
 ### Distribution Séparée (Pour l'utilisateur final)
 
 | Composant | Canal | Installation Utilisateur |
 |-----------|-------|--------------------------|
-| **Overlay binaire (Rust/GTK4)** | **AUR** | `yay -S vesktop-voice-overlay` |
-| **Vencord Plugin (TypeScript)** | **Vencord Plugin Store** | Vesktop → Settings → Plugins → "Install from Store" ou URL |
+| **Overlay binaire (Rust/GTK4)** | **Source / AUR template** | AUR publication not completed |
+| **Vencord Plugin (TypeScript)** | **Source userplugin** | Custom build from pinned Vencord source |
 
 ### Pourquoi séparé ?
 - **AUR** = binaire système géré par pacman (dépendances GTK4, layer-shell, etc.)
-- **Vencord Plugin Store** = installation native Vesktop (Settings → Plugins), mises à jour auto, pas de copie manuelle de fichiers
+- A supported Vencord built-in/store channel remains a product goal, not current behavior
 - **Versioning unifié** : Tag `v1.0.0` = plugin + overlay compatibles (protocole socket v1)
 
 ## 8. Métriques de Succès (KPIs)

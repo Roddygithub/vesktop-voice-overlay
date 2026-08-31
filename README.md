@@ -15,7 +15,7 @@ A lightweight, highly responsive, **Wayland-native (layer-shell)** overlay that 
 
 - 🔒 **Privacy-first**: No Discord token access, no self-bots, no separate Gateway connections
 - 🖥️ **Wayland-native**: Uses `layer-shell` protocol with an empty input region, so mouse clicks pass through to whatever is underneath (wlroots compositors: Hyprland, sway, niri, etc.)
-- ⚡ **Low latency**: Unix socket bridge (< 100ms speaking indicator update)
+- ⚡ **Low latency**: Event-driven voice updates over a local Unix socket
 - 🎮 **Game compatible**: Click-through overlay works over fullscreen XWayland games
 - 🔄 **Auto-reconnect**: Fast bounded backoff (≤ 2s) if Vesktop or the overlay restarts; the latest settings and voice snapshot are replayed automatically so no voice activity is needed to repopulate the overlay
 - 🚀 **Session autostart**: ships a `systemd --user` service (`vesktop-voice-overlay.service`)
@@ -46,16 +46,20 @@ A lightweight, highly responsive, **Wayland-native (layer-shell)** overlay that 
 ### Quick Start (Arch Linux / Hyprland)
 
 ```bash
-# 1. Overlay binary (AUR)
-yay -S vesktop-voice-overlay
+# 1. Install build/runtime dependencies
+sudo pacman -S rust gtk4 gtk4-layer-shell pkg-config
 
-# 2. Vencord Plugin (via Vesktop UI)
-# Vesktop → Settings → Plugins → Install from Store → "Vesktop Voice Overlay"
-# OR: Install from file → vesktop-voice-overlay-plugin-1.1.0.tgz
+# 2. Build the overlay
+git clone https://github.com/Roddygithub/vesktop-voice-overlay.git
+cd vesktop-voice-overlay/overlay
+cargo build --release --locked
 
-# 3. Launch overlay
-vesktop-voice-overlay
+# 3. Build Vencord with the source userplugin (instructions below), then run
+./target/release/vesktop-voice-overlay
 ```
+
+The repository contains an AUR `PKGBUILD`, but no package is currently
+published in the AUR.
 
 ### Manual Build (Any Linux)
 
@@ -77,17 +81,17 @@ cargo build --release --locked
 # Binary at: target/release/vesktop-voice-overlay
 ```
 
-#### Build Plugin (TypeScript)
+#### Pack Plugin Source (optional)
 ```bash
 cd ~/vesktop-voice-overlay/plugin
 npm ci
-npm pack  # Produces vesktop-voice-overlay-plugin-<version>.tgz
+npm pack  # Produces a source bundle, not a directly installable Vesktop plugin
 ```
 
-#### Install Plugin in Vesktop
-1. Open Vesktop → Settings → Plugins
-2. Click **"Install from file"**
-3. Select `vesktop-voice-overlay-plugin-<version>.tgz`
+Vencord does not load arbitrary npm archives from Vesktop's plugin settings.
+The plugin is currently distributed as a Vencord source userplugin and must be
+included in a custom Vencord build. It has not been accepted into Vencord's
+built-in plugin set.
 
 ### Development: Vencord userplugin workflow (supported)
 
@@ -136,14 +140,19 @@ any restart.
 
 An optional TOML file at `~/.config/vesktop-voice-overlay/config.toml` is
 read at overlay startup if present — it is **never created or written** by
-the overlay. Currently only the `[socket]` `path` key is honored; the other
-keys (`[overlay]` display defaults, `[appearance]`) are reserved and their
-values are overridden by the plugin settings at connect time:
+the overlay. The `[socket]` path and `[overlay].max_participants` are durable
+local options. Other overlay display values act as startup defaults and are
+overridden when plugin settings arrive. Legacy `[appearance]` and
+`overlay.avatar_size` keys are ignored:
 
 ```toml
 [socket]
 path = "/run/user/1000/vesktop-voice-overlay.sock"   # default: $XDG_RUNTIME_DIR/vesktop-voice-overlay.sock
 ```
+
+The plugin fails closed if `$XDG_RUNTIME_DIR` is unavailable. An explicit
+overlay socket path is only useful for manual protocol clients because the
+plugin always uses the runtime-directory path.
 
 ## Usage
 
@@ -151,12 +160,11 @@ path = "/run/user/1000/vesktop-voice-overlay.sock"   # default: $XDG_RUNTIME_DIR
 2. Open Vesktop and join a voice channel
 3. Overlay appears automatically with participant avatars
 4. **Green ring** = currently speaking (static highlight)
-5. **Your avatar** has a small indicator dot
 
 ## Auto-start (systemd user service)
 
-The AUR package ships `vesktop-voice-overlay.service` in
-`/usr/lib/systemd/user/`. It starts the overlay with your graphical session,
+The packaging template installs `vesktop-voice-overlay.service` in
+`/usr/lib/systemd/user/`. Once installed, it starts the overlay with your graphical session,
 restarts it if it ever exits, and is independent of Vesktop's lifecycle
 (the plugin reconnects whenever Vesktop appears).
 
@@ -185,8 +193,8 @@ cleanly with `another vesktop-voice-overlay instance owns ...` and exit code 1.
 
 | Component | Channel | Install Command |
 |-----------|---------|-----------------|
-| **Overlay (Rust)** | AUR (Arch Linux) | `yay -S vesktop-voice-overlay` |
-| **Plugin (TypeScript)** | Vencord Store / GitHub Releases | Vesktop UI → Install from file |
+| **Overlay (Rust)** | Source build; unpublished AUR template | Build with Cargo |
+| **Plugin (TypeScript)** | Source userplugin / GitHub source bundle | Build inside pinned Vencord source |
 
 Both components versioned together via Git tags (`v1.0.0`, `v1.1.0`, etc.) — matching plugin + overlay share compatible socket protocol.
 
@@ -202,7 +210,6 @@ vesktop-voice-overlay/
 │   │   ├── native.ts         # Node.js socket client (main process, net)
 │   │   ├── resendCache.ts    # Reconnect backoff + settings/snapshot replay
 │   │   └── voiceState.ts     # Vencord voice state accessors
-│   ├── manifest.json         # Vencord manifest
 │   ├── package.json
 │   └── tsconfig.json
 ├── overlay/                   # Overlay App (Rust)
@@ -214,22 +221,21 @@ vesktop-voice-overlay/
 │   │   ├── protocol.rs       # Protocol deserialization
 │   │   ├── config.rs         # Optional TOML config (loaded once at startup)
 │   │   └── ui/               # GTK4 widgets
-│   ├── Cargo.toml
-│   └── build.rs              # Version embedding from git tags
+│   └── Cargo.toml
 ├── packaging/aur/             # AUR PKGBUILD
 ├── memory-bank/               # Engineering docs (PRD, Tech Stack, Plan)
 ├── docs/protocol.md           # Socket protocol v1 spec
-├── .github/workflows/         # CI/CD pipelines
-└── scripts/                   # Bootstrap scripts
+└── .github/workflows/         # CI/CD pipelines
 ```
 
 ### CI/CD Pipeline
 - **CI** (`.github/workflows/ci.yml`): Format check, build, test for both components
-- **Release** (`.github/workflows/release.yml`): Tag push → builds artifacts → GitHub Release → AUR update
+- **Release** (`.github/workflows/release.yml`): Tag push → validates and builds
+  artifacts → GitHub Release → optional AUR update when credentials are present
 
 ```bash
 # Local validation
-cd overlay && cargo fmt --check && cargo clippy -- -D warnings && cargo test
+cd overlay && cargo fmt --check && cargo clippy --all-targets --all-features -- -D warnings && cargo test --locked
 cd ../plugin && npm run lint && npm test
 ```
 
@@ -241,6 +247,9 @@ See [`docs/protocol.md`](docs/protocol.md) for full spec.
 Server sends: "VESKTOP_VOICE_OVERLAY/1.0\n"
 Client validates, then sends JSON Lines snapshots
 ```
+
+On voice-channel leave, the plugin sends `{"type":"clear"}` so stale rows are
+removed immediately and the clear state is replayed after reconnects.
 
 **Snapshot:**
 ```json
@@ -263,12 +272,12 @@ Client validates, then sends JSON Lines snapshots
 
 ## Supported Compositors
 
-Tested on wlroots-based Wayland compositors:
+Layer-shell support is compositor-dependent:
 - ✅ **Hyprland** (primary target) — validated end-to-end on Hyprland 0.56
   with Guild Wars 2 (windowed/borderless): overlay visibility, pointer
   click-through, game focus, speaking show/hide, avatar sizing
-- ✅ **sway** / **niri** / **wayfire** — expected to work (wlroots
-  layer-shell), not individually validated
+- ⚠️ **sway** / **niri** / **wayfire** — expected to work through layer-shell,
+  but not individually validated
 - ⚠️ GNOME/KDE (layer-shell support varies) — untested
 - ⚠️ Multi-monitor placement and exclusive-fullscreen games are untested
 

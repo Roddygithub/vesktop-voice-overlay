@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-31
+
+### Added
+- Authoritative `clear` state on voice-channel leave, including reconnect replay.
+- Center position option and compatibility with camelCase/snake_case speaking events.
+- Release artifact checksums and tag-to-package version verification.
+
+### Fixed
+- Prevent stale rows after leaving a voice channel or disabling/restarting the plugin.
+- Keep participant order deterministic across joins, leaves, duplicate IDs, and
+  participant limits while reusing existing GTK rows.
+- Refresh changed avatar URLs and prevent stale async avatar results from
+  overwriting newer state.
+- Enforce socket payload limits before allocation, preserve JSONL
+  resynchronization, and reject competing clients that could leave stale state.
+- Honor Node socket backpressure and bound GTK commands, socket clients, avatar
+  downloads, HTTP response sizes, image dimensions, and decode allocations.
+- Repair the tag release Cargo working directory and AUR workspace paths.
+- Preserve authoritative settings and clear/snapshot state during connected
+  socket backpressure.
+- Reject insecure `/tmp` socket fallback when `$XDG_RUNTIME_DIR` is absent.
+- Prevent delayed disconnect hides from overtaking reconnect state.
+- Make first-time AUR publication, release checksums, and source licensing valid.
+
+### Changed
+- Align direct gtk-rs dependencies, remove unused dependencies/build metadata,
+  and avoid unintended OpenSSL and unused image-codec linkage.
+- Document the plugin artifact accurately as a Vencord source bundle rather
+  than a directly installable Vesktop package.
+
 ## [1.1.0] - 2026-08-24
 
 ### Fixed

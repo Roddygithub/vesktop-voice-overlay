@@ -1,8 +1,9 @@
 post_install() {
   echo "Vesktop Voice Overlay installed!"
   echo ""
-  echo "1. Install the Vencord plugin in Vesktop:"
-  echo "   Settings → Plugins → Install from file (plugin .tgz from releases)"
+  echo "1. Build the Vencord source userplugin:"
+  echo "   Follow the pinned Vencord integration steps in the project README."
+  echo "   Release .tgz files are source bundles, not Vesktop-installable plugins."
   echo ""
   echo "2. Enable the user service so the overlay starts with your session:"
   echo "   systemctl --user enable --now vesktop-voice-overlay.service"
@@ -20,5 +21,5 @@ pre_remove() {
   if systemctl --user is-enabled vesktop-voice-overlay.service >/dev/null 2>&1; then
     systemctl --user disable --now vesktop-voice-overlay.service
   fi
-  echo "Don't forget to also remove the Vencord plugin from Vesktop Settings → Plugins"
+  echo "Don't forget to remove the source userplugin from your custom Vencord build"
 }

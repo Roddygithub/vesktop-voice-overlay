@@ -33,6 +33,6 @@ cd overlay && cargo fmt --check && cargo clippy -- -D warnings && cargo test
 ### Build Release
 
 ```bash
-cd overlay && cargo build --release
+cd overlay && cargo build --release --locked
 cd ../plugin && npm pack
 ```

@@ -5,6 +5,7 @@ After=graphical-session.target
 
 [Service]
 ExecStart=/usr/bin/vesktop-voice-overlay
+Environment=RUST_BACKTRACE=1
 Restart=always
 RestartSec=2
 

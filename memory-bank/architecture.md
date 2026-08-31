@@ -1,314 +1,152 @@
-# Architecture — Vesktop Voice Overlay
+# Architecture - Vesktop Voice Overlay
 
-## 1. Vue d'Ensemble Système
+## Runtime Data Path
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           VESKTOP (Electron + Vencord)                      │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  Renderer Process (WebView)                                         │   │
-│  │  ┌─────────────────────────────────────────────────────────────┐   │   │
-│  │  │  Vencord Plugin (TypeScript)                                │   │   │
-│  │  │  - Accède aux stores voice internes (VoiceStateStore/UserStore) │   │
-│  │  │  - Sérialise snapshots versionnés (JSON)                   │   │   │
-│  │  │  - Envoie via Unix socket (credentials passing)            │   │   │
-│  │  │  - Gère reconnexion auto                                    │   │   │
-│  │  └─────────────────────────────────────────────────────────────┘   │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                     Unix Socket (SO_PEERCRED, user-only)
-                    $XDG_RUNTIME_DIR/vesktop-voice-overlay.sock
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                        OVERLAY PROCESS (Rust + GTK4)                        │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  GTK4 + layer-shell (Wayland native)                               │   │
-│  │  - Click-through surface (zwlr_layer_surface_v1)                   │   │
-│  │  - Reçoit snapshots via socket                                     │   │
-│  │  - Rend: avatars, noms, speaking indicator (pulse animation)       │   │
-│  │  - Position configurable (coin, centre, custom)                    │   │
-│  │  - Gère cycle de vie Vesktop (socket disconnect = hide)            │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
+```text
+Discord renderer stores
+  -> Vencord source userplugin (TypeScript)
+  -> versioned settings + voice-state JSONL
+  -> Node main-process Unix socket client
+  -> same-UID Rust Unix socket server
+  -> bounded GTK command channel
+  -> keyed participant state
+  -> GTK4 + gtk4-layer-shell surface
+  -> Wayland compositor
 ```
 
-## Runtime Threading Constraint
+The plugin uses `VoiceStateStore` and `UserStore` from the existing Discord
+renderer. It does not read a token, open a Gateway connection, inspect message
+content, or inject into a game process. The renderer invokes the native socket
+helper through Vencord's generated `PluginNative` bridge.
 
-The socket accept loop uses blocking Unix I/O and must run outside GTK's main
-context. It dispatches validated commands through the channel consumed by the
-GTK event loop; `ClientConnected`, `UpdateSnapshot`, and lifecycle visibility
-changes must therefore remain GTK-thread operations.
+## Plugin
 
-Avatar network I/O is an exception to GTK-thread work: HTTP fetches run on a
-Tokio-backed worker, while decoded textures and widget updates return to the
-GTK context.
+`plugin/src/index.ts` owns settings, Flux subscriptions, plugin lifecycle, and
+the renderer-to-native calls. `voiceState.ts` maps the current voice channel to
+an authoritative snapshot containing only user ID, display name, Discord CDN
+avatar URL, mute/deaf state, and speaking state.
 
-The Voice Widget uses a transparent layer-shell window and scrolled viewport;
-each visible participant owns its compact translucent row. This prevents GTK
-theme backgrounds from producing a second opaque card around the widget.
-The application CSS provider runs at priority 800, above the GTK theme. GTK
-CSS does not support browser-style `!important`; using it causes the affected
-declarations to be rejected with theme parser errors.
+Speaking state is maintained from `SPEAKING` and `STOP_SPEAKING` events. Both
+`userId` and `user_id`, plus both speaking-flags spellings, are accepted. Voice
+channel changes clear the speaking set. Leaving a channel emits an
+authoritative `{"type":"clear"}` message.
 
-Discord avatars are decoded as RGBA and passed directly to GdkPixbuf. Avoiding
-the Cairo ARGB32 intermediate prevents channel-order swaps on little-endian
-systems.
+`native.ts` runs in Vesktop's main process and owns the Node `net.Socket`.
+Connection attempts use 500 ms, 1 s, then a 2 s cap. Outbound writes wait for
+the server header and honor Node backpressure. The pending queue is capped at
+100 lines; settings and voice state are coalesced without eviction both while
+disconnected and backpressured, then replayed settings-first.
 
-Vencord persists Voice Widget preferences and sends a separate `type:
-"settings"` message through the same-user Unix socket. The overlay applies
-only display modes and layer-shell position values from this message; versioned
-voice snapshots remain authoritative participant data.
+The plugin is a Vencord source userplugin. The release `.tgz` is only a compact
+source bundle; it is not directly installable from Vesktop's settings.
 
-## 2. Composants Détaillés
+## Protocol And IPC
 
-### 2.1 Vencord Plugin (`plugin/`)
+The default socket is `$XDG_RUNTIME_DIR/vesktop-voice-overlay.sock`; the plugin
+and default overlay fail closed when the runtime directory is absent. An
+explicit overlay socket path supports manual protocol clients only. The socket
+mode is `0700`. The server requires successful Linux `SO_PEERCRED` retrieval
+and an exact current-UID match before sending `VESKTOP_VOICE_OVERLAY/1.0\n`.
 
-**Responsabilités** :
-- Accès aux stores voice internes Vesktop (`VoiceStateStore`, `UserStore`)
-- Détection changements : join/leave/mute/deaf/speaking
-- Sérialisation snapshots versionnés (JSON) avec timestamp + version protocole
-- Envoi via Unix socket user-only, validé par `SO_PEERCRED`
-- Gestion reconnexion : exponential backoff, max 5 tentatives, puis pause
-- Cycle de vie : se connecte au démarrage Vesktop, nettoie socket à l'arrêt
+Protocol v1 accepts:
 
-**Architecture Interne** :
-```
-plugin/src/
-├── index.ts              # Entry point Vencord (definePlugin, flux events)
-├── native.ts             # Electron IPC native module (IpcMainInvokeEvent)
-├── protocol.ts           # Types TypeScript + serialization (v1)
-├── voiceState.ts         # Vencord stores (VoiceStateStore, UserStore) + speaking set
-└── snapshot.ts           # Création snapshots (participants, speaking, self)
-```
+- `SnapshotV1` with exact `version: 1`;
+- validated `type: "settings"` messages;
+- `type: "clear"`.
 
-**Protocole Socket (v1)** :
-```typescript
-// Plugin → Overlay
-interface Snapshot {
-  version: 1;
-  timestamp: number;           // Date.now()
-  self: {                      // Utilisateur local
-    userId: string;
-    username: string;
-    avatarUrl: string;
-    mute: boolean;
-    deaf: boolean;
-    speaking: boolean;
-  };
-  participants: Participant[]; // Autres dans le canal
-}
+Input is capped at 64 KiB per line before allocation. Oversized and invalid
+UTF-8 lines are discarded through the newline so the stream remains
+synchronized. Parse logs contain byte counts only. The server accepts one
+same-UID client so state cannot outlive its author. A bounded 256-command
+channel backpressures the socket reader instead of growing memory.
 
-interface Participant {
-  userId: string;
-  username: string;
-  avatarUrl: string;
-  speaking: boolean;
-  volume?: number;             // 0-100 (si dispo)
-}
-```
+## Overlay Threading
 
-### 2.2 Overlay GTK4 (`overlay/`)
+Socket accept and reads use blocking standard-library Unix I/O on named worker
+threads. No GTK object crosses those threads. Validated commands are consumed
+by a GLib local future on GTK's main context, where all window and widget work
+occurs.
 
-**Responsabilités** :
-- Crée surface layer-shell (zwlr_layer_surface_v1) avec `keyboard_interactivity=none` (click-through)
-- Écoute Unix socket, désérialise snapshots, met à jour UI
-- Rendu : liste participants (avatar circulaire, nom, anneau speaking pulsant)
-- Gestion cycle de vie : socket disconnect → hide overlay, reconnect → show
-- Position configurable : coin (TL/TR/BL/BR), centre, coordonnées custom
-- Thème : suit GTK theme (Adwaita) + CSS custom pour speaking pulse
+Client lifecycle is counted defensively. When the client disconnects, a
+five-second GLib timeout clears and hides the window unless it reconnects.
+Queued hides recheck connection state, so a delayed hide cannot overtake a
+completed reconnect. An explicit clear removes rows and cached snapshot state
+immediately.
 
-**Architecture Interne** :
-```
-overlay/src/
-├── main.rs                 # Entry point, GTK application
-├── layer_shell.rs          # Layer-shell surface setup (click-through)
-├── socket_server.rs        # Unix socket listener (async, tokio)
-├── protocol.rs             # Deserialization (versioned, matches plugin)
-├── ui/
-│   ├── participant_list.rs # Widget liste participants
-│   ├── avatar.rs           # Avatar widget (async image load)
-│   └── speaking_indicator.rs # Pulse animation
-├── config.rs               # Config file (~/.config/vesktop-voice-overlay/config.toml)
-└── lifecycle.rs            # Vesktop lifecycle detection (socket state)
-```
+## GTK And Layer Shell
 
-**Configuration** (`~/.config/vesktop-voice-overlay/config.toml`) :
-```toml
-[overlay]
-position = "top-right"      # top-left, top-right, bottom-left, bottom-right, center, custom
-custom_x = 0
-custom_y = 0
-max_participants = 10
-avatar_size = 28
-user_display = "speaking_only"
-name_display = "speaking_only"
-avatar_size_mode = "small"
+The application uses a non-unique `GtkApplication`; duplicate-instance
+ownership is determined synchronously by the Unix socket bind. A stale socket
+is replaced, while a connectable socket causes startup to fail.
 
-[appearance]
-theme = "auto"              # auto, light, dark
-speaking_pulse_ms = 1000
-show_names = true
+The layer-shell window uses the overlay layer, no keyboard interactivity, zero
+exclusive zone, and preset/custom anchors. An empty GDK input region is applied
+on every map for pointer pass-through. The structural GTK nodes are transparent;
+the visible name pills provide the dark translucent backdrop. The participant
+container remains hidden until at least one row is visible.
 
-[socket]
-path = "/run/user/1000/vesktop-voice-overlay.sock"  # ou $XDG_RUNTIME_DIR
-```
+Rows are keyed by user ID and reused. Each update computes self-first,
+case-insensitive name order with a user-ID tie-break, removes duplicate IDs,
+applies the configured participant cap after sorting, and reorders existing
+`GtkListBoxRow` objects as needed. Speaking, name visibility, mute/deaf badges,
+and 28/40 px avatar size update in place.
 
-### 2.3 Communication Plugin ↔ Overlay
+## Avatar Pipeline
 
-| Aspect | Détail |
-|--------|--------|
-| **Transport** | Unix Domain Socket (AF_UNIX, SOCK_STREAM) |
-| **Sécurité** | `SO_PEERCRED` validation (même UID), `SCM_RIGHTS` pour fd passing |
-| **Emplacement** | `$XDG_RUNTIME_DIR/vesktop-voice-overlay.sock` |
-| **Protocole** | JSON Lines (un snapshot par ligne) + version header |
-| **Versioning** | Header `VESKTOP_VOICE_OVERLAY/1.0\n` puis JSON lines |
-| **Reconnexion** | Plugin : backoff exponentiel (1s, 2s, 4s, 8s, 16s, max 30s) |
-| **Cycle de vie** | Overlay crée socket → Plugin connecte → Snapshots flux continu |
+Avatar fetches run on one shared single-worker Tokio runtime and one shared
+reqwest client. URLs must use HTTPS with the exact `cdn.discordapp.com` host;
+redirects are disabled. Fetch concurrency is capped at eight, response bodies
+at 2 MiB, image dimensions at 256x256, and decoder allocation at 8 MiB.
 
-## 3. Distribution Architecture
+Decoded RGBA images use a 128-entry FIFO cache keyed by URL. GTK texture
+creation and widget mutation happen after returning to the main context. Each
+row uses a request generation and explicit loading state: URL changes display a
+placeholder immediately, same-URL requests are deduplicated, failures can retry,
+and late results cannot affect a newer request even after an `A -> B -> A`
+sequence.
 
-### Monorepo Source (GitHub)
-```
-vesktop-voice-overlay/
-├── plugin/                    # Vencord userplugin (source, not npm package)
-│   ├── package.json           # Dev deps (vitest, eslint) only
-│   ├── tsconfig.json          # Local IDE, not authoritative
-│   └── src/
-│       ├── index.ts           # definePlugin entry, flux events
-│       ├── native.ts          # Electron IPC native module
-│       ├── protocol.ts        # Shared protocol types
-│       ├── voiceState.ts      # Vencord stores adapter
-│       └── snapshot.ts        # Snapshot builder
-├── overlay/                   # Rust crate (cargo package)
-│   ├── Cargo.toml
-│   ├── src/
-│   └── build.rs               # Embed version from git tag
-├── packaging/
-│   └── aur/
-│       ├── PKGBUILD           # Build overlay from source
-│       ├── vesktop-voice-overlay.install
-│       └── .SRCINFO
-├── .github/workflows/
-│   ├── ci.yml                 # Tests, lint, Vencord-integrated build
-│   └── release.yml            # Tag push → build + release assets
-├── README.md
-├── LICENSE (GPL-3.0)
-└── AGENTS.md
-```
+## Configuration
 
-> **Plugin is a Vencord source userplugin**, not a standalone npm package.
-> For CI, plugin files are copied into Vencord's `src/userplugins/vesktopVoiceOverlay/`
-> and built via `pnpm build` within the Vencord source tree.
-> Symlinks do not work because esbuild resolves `@utils/*`/`@webpack` relative to the
-> real file path, not the symlink path.
-> Vencord compatibility baseline: pinned revision `ef29bbeb` (v1.15.2).
+The overlay optionally reads
+`~/.config/vesktop-voice-overlay/config.toml` once at startup and never writes
+it. The socket path and `overlay.max_participants` remain local configuration.
+Plugin settings override enabled state, position, coordinates, user/name
+display modes, and avatar-size mode in memory. Legacy appearance and numeric
+avatar-size fields are ignored.
 
-### Distribution Séparée (Utilisateur Final)
+## Distribution And Validation
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    MONOREPO (v1.0.0 tag)                        │
-│  ├── plugin/ → vesktop-voice-overlay-plugin-1.0.0.tgz         │
-│  └── overlay/ → vesktop-voice-overlay (binary)                 │
-└─────────────────────────────────────────────────────────────────┘
-           │                                    │
-           ▼                                    ▼
-┌─────────────────────────┐          ┌─────────────────────────┐
-│   Vencord Plugin Store  │          │         AUR             │
-│   (npm registry-like)   │          │  (archlinux.org/packages)│
-│                         │          │                         │
-│ Install: Vesktop UI     │          │ Install: yay -S pkg     │
-│ Update: Auto (Vesktop)  │          │ Update: yay -Syu        │
-└─────────────────────────┘          └─────────────────────────┘
-           │                                    │
-           └──────────────┬─────────────────────┘
-                          ▼
-              ┌───────────────────────┐
-              │    UTILISATEUR FINAL  │
-              │  yay -S vesktop-voice-overlay    │
-              │  Vesktop → Plugins → Install     │
-              └───────────────────────┘
-```
+The repository contains an unpublished Arch source-package template plus a
+systemd user unit. CI runs Rust
+formatting, clippy, tests under Xvfb, plugin lint/tests, a release build, and a
+Vencord build at commit `ef29bbeb6119cfb53d1273ed78147bcc97d91261` using
+pnpm 11.9.0 with its frozen lockfile. gtk4-layer-shell source builds are pinned
+to commit `1c963c51514581c41b9bdae08cdf69171265cdda`.
 
-### CI/CD Pipeline (`.github/workflows/ci.yml`)
+GTK initialization is process-global, so CSS parsing, avatar measurement, and
+container visibility assertions run in one aggregate Rust test rather than on
+concurrent test-harness threads. CI executes that suite under Xvfb.
 
-```yaml
-# Vencord compatibility baseline
-VENCORD_REV: 'ef29bbeb'
+Tag releases verify Cargo/npm versions, rerun Rust/plugin/pinned-Vencord gates,
+build from the tag checkout, publish flat-path SHA-256 checksums, and update the
+AUR source checksum when credentials exist. First publication uses the AUR's
+required `master` branch and includes a 0BSD package-source license. No workflow
+publishes without a pushed tag.
 
-jobs:
-  lint-and-test:
-    # Rust fmt, clippy, build, test + Plugin lint, vitest
-    # Standalone typecheck removed (Vencord modules not resolvable)
+## Dependency Maintenance
 
-  vencord-integration:
-    needs: lint-and-test
-    # Clones pinned Vencord, copies plugin, runs pnpm build
-    # Fails if plugin is incompatible with pinned Vencord revision
+- gtk-rs core crates must move in lockstep to avoid duplicate GLib trees;
+- GitHub Actions stay SHA-pinned, with related CodeQL pins updated together;
+- npm and release-action majors require deliberate migration and release-path
+  validation rather than automatic adoption.
 
-  build-release:
-    # Only on push to main: cargo build --release
-```
+## Deferred Or Human-Only Evidence
 
-> **Standalone typecheck is not authoritative.** The plugin imports Vencord-internal
-> modules (`@utils/*`, `@webpack`) that only resolve within Vencord's esbuild build.
-> The `vencord-integration` job is the external compatibility gate.
-> To update the Vencord baseline, change `VENCORD_REV` in `ci.yml` and validate locally.
-
-### Dependency maintenance policy (`.github/dependabot.yml`, 2026-08-25)
-
-```yaml
-# Monthly cadence, one grouped PR per ecosystem for minor+patch.
-npm (/plugin):        minor+patch grouped; semver-major ignored
-cargo (/overlay):     minor+patch grouped; majors individual, limit 3
-github-actions (/.):  minor+patch grouped; semver-major ignored
-```
-
-Rationale:
-- **Majors are suppressed** on npm and Actions until adopted deliberately
-  (eslint ≥9 needs flat-config migration; release-path actions can only be
-  validated during a release window). Security updates are never grouped or
-  ignored — they always arrive individually.
-- **Cargo majors stay individual** but capped: gtk-rs core crates (glib, gio,
-  gtk4, gdk4, libadwaita, gdk-pixbuf) must be bumped **in lockstep** by hand;
-  solo Dependabot bumps of any gtk-rs crate duplicate the glib stack in
-  Cargo.lock and must be rejected.
-- SHA-pinned actions get digest PRs individually (grouping does not apply to
-  them); codeql-action pins must always move init+analyze together.
-
-## 4. Sécurité & Sandbox
-
-| Mesure | Implémentation |
-|--------|----------------|
-| **Pas de token Discord** | Plugin lit seulement voice state interne (déjà authentifié par Vesktop) |
-| **Socket user-only** | `$XDG_RUNTIME_DIR` (mode 0700), `SO_PEERCRED` validation UID |
-| **Pas de réseau** | Unix socket local uniquement, pas de TCP/UDP |
-| **Validation protocole** | Version header + JSON schema validation côté overlay |
-| **Least privilege** | Overlay : pas de capabilities, layer-shell click-through seulement |
-| **Code audit** | Plugin TypeScript (pas de `eval`, pas de `Function` constructor) |
-
-## 5. Tests & Validation
-
-| Niveau | Outils | Couverture |
-|--------|--------|------------|
-| **Unit (Plugin)** | Vitest | Protocol serialization |
-| **Unit (Overlay)** | cargo test | Socket server, deserialization, lifecycle |
-| **Vencord Integration** | `pnpm build` in pinned Vencord source | Plugin discovery, native IPC, flux events, full build |
-| **Compatibilité** | Matrix: Hyprland, sway, niri, labwc | Layer-shell behavior, click-through, fullscreen games |
-
-## 6. Évolutions Futures (Post-v1)
-
-| Feature | Complexité | Dépendances |
-|---------|------------|-------------|
-| Config UI (GTK) dans overlay | Moyenne | libadwaita, settings dialog |
-| Thèmes personnalisables | Faible | CSS variables |
-| Historique participants | Faible | SQLite local |
-| Intégration Noctalia panel | Moyenne | Plugin Noctalia séparé |
-| Flatpak extension | Élevée | Flatpak Vesktop + portal |
-| Support multi-canaux | Moyenne | Protocol v2 (array de canaux) |
-
----
-
-*Architecture validée pour distribution Monorepo → AUR + Vencord Store. Protocole socket v1 figé à la release v1.0.0.*
+- Human validation on 2026-08-31 passed a real multi-user Discord voice call,
+  speaking transitions, mute/deaf badges, live avatar refresh, overlay and
+  Vesktop restart/reconnect, channel leave clearing, and click-through over a
+  game on the current v1.2.0 candidate deployment.
+- Layer-shell placement and fullscreen behavior were validated in the same
+  Hyprland/game session. Sway, niri, wayfire, GNOME, KDE, and multi-monitor
+  behavior remain unverified.
+- Multi-monitor placement and exclusive-fullscreen behavior remain unverified.

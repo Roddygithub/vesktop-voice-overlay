@@ -2,6 +2,64 @@
 
 ## Statut Global
 
+## v1.2.0 human validation — 2026-08-31
+
+- **PASS**: real multi-user Discord voice call completed with the current
+  v1.2.0 candidate deployment.
+- **PASS**: self/other rows, speaking rings, mute/deaf badges, click-through
+  over the game, and live participant avatar refresh without reverting.
+- **PASS**: overlay restart replayed settings and participants; Vesktop restart
+  reconnected successfully; leaving the voice channel cleared the overlay.
+- This closes the final human-only release gate. No source changes were made
+  during deployment or validation.
+
+## v1.2.0 final XHIGH review — 2026-08-31
+
+- Independent challenge found unsafe `/tmp` fallback trust, dropped avatar
+  fetches beyond eight, stale delayed-hide ordering, authoritative state loss
+  under Node backpressure, input-order-dependent duplicate IDs, and broken
+  first-publication/checksum/license paths in the tag workflow.
+- Minimal corrections now fail closed without `$XDG_RUNTIME_DIR`, queue avatar
+  work, cap decoded cache entries to 256px images, coalesce authoritative
+  backpressure state, clear only current disconnect state, admit one IPC client,
+  and exercise actual GTK row reuse/order/badges/removal in the aggregate test.
+- Final validation passes: Rust fmt/clippy, 39 tests, release/release-debug
+  builds; plugin clean install, 24 tests, lint, zero-vulnerability audit, and
+  seven-file licensed package; pinned Vencord build/discovery; actionlint/YAML,
+  flat checksum simulation, AUR metadata/shell, and systemd verification.
+- The exact root-container `runuser` command and future tag-triggered GitHub/AUR
+  publication remain environment/release-only checks, not locally executed.
+
+## v1.2.0 release-candidate audit — 2026-08-28
+
+- Full source/history/dependency/workflow review found release-blocking defects
+  despite green CI: stale UI after voice leave, false deterministic ordering,
+  allocation-before-limit in JSONL reads, incorrect multi-client disconnect
+  state, unbounded command/socket backpressure paths, unsafe avatar resource
+  assumptions, and broken tag/AUR workflow paths.
+- Corrective work adds authoritative clear/replay, bounded IPC and avatar I/O,
+  live race-safe avatar refresh, real ordering/deduplication tests, same-UID
+  connection limits, tag/version checks, checksums, deterministic integration
+  inputs, and truthful source-userplugin documentation.
+- The npm `.tgz` is confirmed to be a source bundle, not a directly installable
+  Vesktop/Vencord plugin. A supported end-user plugin distribution channel
+  remains unresolved.
+- Automated validation status and human-only gates are recorded in the final
+  maintainer report; prior PASS entries below are historical evidence only.
+- Interrupted avatar recovery completed: request generations now prevent stale
+  `A -> B -> A` completions from mutating current widget state, same-URL loads
+  are deduplicated, failures remain retryable, and fetch concurrency is restored
+  to the evidence-backed limit of eight. Eleven focused avatar tests and
+  all-target Clippy pass; the GTK sizing test executed successfully.
+- Final mechanical validation exposed and fixed a GTK test-only SIGSEGV: the
+  coredump showed all three GTK tests concurrently inside `gtk_init_check` on
+  separate harness threads. They now run as one GTK aggregate test. The default
+  parallel suite passes 39/39; the aggregate executed on the active display.
+- The HIGH phase reported authoritative Rust, plugin, Vencord, workflow, and
+  packaging validation as passing. XHIGH later found release-path gaps that
+  syntax and local metadata simulations did not cover; its corrections and
+  final validation are recorded above.
+
 ## ✅ Suppression du cadre GTK autour des participants — 2026-08-26
 
 - **Cause racine** : GTK CSS ne prend pas en charge `!important`. Les resets de
@@ -37,7 +95,7 @@
 
 - **Tag** : `v1.1.0` → commit `df4a3b4` (release workflow corrigé : gtk4-layer-shell
   buildé depuis les sources dans le job `build-overlay` de release.yml)
-- **GitHub Release** : publiée, assets = binaire overlay + plugin tgz 1.1.0
+- **GitHub Release** : publiée, assets = binaire overlay + plugin source tgz 1.1.0
 - **Validation** : Hyprland 0.56 + Guild Wars 2 (visibilité, click-through,
   focus, speaking show/hide, resize Small=28px/Large=40px mesuré au pixel,
   recovery restart ≈0,35 s, refus seconde instance)
@@ -80,7 +138,7 @@ git push origin main --tags
 ### Distribution configurée
 - **AUR** : `packaging/aur/PKGBUILD` + workflow auto-update
 - **GitHub Releases** : workflow `.github/workflows/release.yml`
-- **Vencord Store** : plugin `.tgz` installable via Vesktop UI
+- **Vencord Store** : historical claim was incorrect; `.tgz` is source only
 
 ---
 
