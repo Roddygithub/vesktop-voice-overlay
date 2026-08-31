@@ -50,6 +50,11 @@
   state for both the local user and another participant. The internal plugin
   name shown in Vencord's Plugins UI is a deferred naming/UX follow-up and is
   intentionally unchanged during this lifecycle.
+- Exact pinned-source audit confirms this is not currently solvable in the
+  project plugin alone: Vencord uses `PluginDef.name` as both display text and
+  operational identity across generated plugin/native maps, settings,
+  enablement, patches, and UI. `PluginAuthor.id` is unrelated, and
+  setting-level `displayName` does not apply to the plugin itself.
 - The complete live lifecycle passed: repair, update, uninstall, clean
   reinstall, final uninstall, and legacy-service restoration. Runtime changes
   to shared Vencord settings were preserved rather than attributed back to the

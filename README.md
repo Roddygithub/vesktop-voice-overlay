@@ -5,7 +5,12 @@
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](https://opensource.org/licenses/GPL-3.0)
 [![Version](https://img.shields.io/github/v/tag/Roddygithub/vesktop-voice-overlay?label=version&sort=semver)](https://github.com/Roddygithub/vesktop-voice-overlay/releases)
 
-A **Wayland-native** voice activity overlay for **Discord Desktop and Vesktop**, built with **TypeScript**, **Rust**, and **GTK4**.
+A native Wayland voice activity overlay for Discord Desktop and Vesktop on Linux.
+
+Discord Voice Overlay shows who is speaking without changing the game process:
+participant names and avatars, speaking and mute/deaf indicators, configurable
+positioning, and click-through behavior. It includes a shared custom Vencord
+plugin and the v1.3.0 universal installer/manager.
 
 ## Overview
 
@@ -19,6 +24,7 @@ A lightweight, highly responsive, **Wayland-native (layer-shell)** overlay that 
 - 🎮 **Game compatible**: Click-through overlay works over fullscreen XWayland games
 - 🔄 **Auto-reconnect**: Fast bounded backoff (≤ 2s) if Discord Desktop, Vesktop, or the overlay restarts; the latest settings and voice snapshot are replayed automatically so no voice activity is needed to repopulate the overlay
 - 🚀 **Session autostart**: ships a `systemd --user` service (`vesktop-voice-overlay.service`)
+- 🧰 **Universal manager**: v1.3.0 provides install, status, doctor, update, repair, and uninstall for supported native clients
 
 ## Architecture
 
@@ -38,15 +44,16 @@ A lightweight, highly responsive, **Wayland-native (layer-shell)** overlay that 
 
 - ✅ **No Discord token** — Never reads, stores, or transmits your account token
 - ✅ **No self-bots** — No separate Discord Gateway connections
-- ✅ **Local only** — Unix domain socket under `$XDG_RUNTIME_DIR` with `0700` permissions + `SO_PEERCRED` UID validation
-- ✅ **No network ports** — Pure local IPC
+- ✅ **Same-user IPC** — Unix domain socket under `$XDG_RUNTIME_DIR` with `0700` permissions + `SO_PEERCRED` UID validation
+- ✅ **Minimal data boundary** — Only required voice-state snapshots cross the local socket; avatar images may be fetched from Discord's CDN over HTTPS
 
 ## Installation
 
-### Installer (Arch Linux / Omarchy)
+### Universal Installer (Arch Linux / Omarchy)
 
-The supported one-command setup manages the overlay and one native Vencord
-client without changing pacman packages or requiring root:
+The primary v1.3.0 installation path manages the overlay and one native Vencord
+client without changing pacman packages or requiring root. It supports native
+Arch Linux Discord Desktop and Vesktop installations:
 
 ```bash
 git clone https://github.com/Roddygithub/vesktop-voice-overlay.git
@@ -57,10 +64,11 @@ cd vesktop-voice-overlay
 Use `./install.sh --client discord` or `./install.sh --client vesktop` when
 both clients are installed. The manager keeps its Vencord checkout and overlay
 under `~/.local/share/discord-voice-overlay/`, verifies release checksums,
-enables only the managed `VesktopVoiceOverlay` plugin in Vencord settings, and
-preserves `~/.config/vesktop-voice-overlay/config.toml`.
+enables only the managed plugin in Vencord settings, and preserves
+`~/.config/vesktop-voice-overlay/config.toml`.
 
 ```bash
+./install.sh install
 ./install.sh status
 ./install.sh doctor
 ./install.sh update
@@ -73,7 +81,24 @@ Vencord/injected setups are detected or rejected safely; see
 [`docs/installer.md`](docs/installer.md). `--dry-run` shows changes without
 modifying client, service, or overlay state.
 
-### Quick Start (Arch Linux / Hyprland)
+Release binaries and plugin source bundles are available on the
+[`v1.3.0 release`](https://github.com/Roddygithub/vesktop-voice-overlay/releases/tag/v1.3.0)
+page; the manager normally downloads and verifies the matching release assets
+for you.
+
+If an existing custom Vencord integration or injected Discord target is found,
+the manager refuses to overwrite or silently adopt it. This protects existing
+Vencord plugins and client modifications. Use `status` and `doctor` to inspect
+ownership and supported-client problems; review [`docs/installer.md`](docs/installer.md)
+before deciding whether to remove or reconfigure the foreign integration.
+
+### Manual Build and Development
+
+The following paths are for development, unsupported packaging variants, or
+users who intentionally manage the client integration themselves. They are not
+the primary v1.3.0 installation path.
+
+#### Quick Start (Arch Linux / Hyprland)
 
 ```bash
 # 1. Install build/runtime dependencies
@@ -91,7 +116,7 @@ cargo build --release --locked
 The repository contains an AUR `PKGBUILD`, but no package is currently
 published in the AUR.
 
-### Manual Build (Any Linux)
+#### Manual Build (Any Linux)
 
 #### Prerequisites
 ```bash
@@ -160,6 +185,15 @@ and `dist/vencordDesktopMain.js` must both be ≥ 1.
 # Or with debug logging
 RUST_LOG=debug ./target/release/vesktop-voice-overlay
 ```
+
+### Vencord Compatibility Note
+
+**Why does Vencord show `VesktopVoiceOverlay`?**
+
+`VesktopVoiceOverlay` is the historical internal Vencord plugin identifier.
+Vencord uses it as part of plugin identity and persisted settings, so it is
+intentionally retained for backward compatibility. The project itself is
+Discord Voice Overlay and supports both Discord Desktop and Vesktop.
 
 ## Configuration
 

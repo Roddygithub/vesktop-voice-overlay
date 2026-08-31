@@ -157,6 +157,23 @@
   match the approved rollback bundle. Shared Vencord settings remain enabled
   by the documented conservative ownership rule.
 
+### Vencord UI naming follow-up — 2026-08-31
+
+- Audited the exact pinned Vencord source at revision
+  `ef29bbeb6119cfb53d1273ed78147bcc97d91261`.
+- `PluginDef` has no independent plugin display-name field. Its `name` is the
+  operational identity used by generated plugin maps, native IPC maps,
+  settings persistence, enablement, patches, search, and the Plugins UI.
+- The only `id` field in the relevant types belongs to `PluginAuthor`; the
+  available `displayName` field belongs to individual plugin settings.
+- Vencord's build generator requires a literal `name` as the first property of
+  `definePlugin` and uses that value as the generated map key. Therefore the
+  public label cannot be changed project-only while preserving
+  `VesktopVoiceOverlay` compatibility.
+- No code change was made. The correct result is to retain
+  `VesktopVoiceOverlay` and defer any rename/display-label change until a
+  Vencord-side API supports decoupled identity and presentation.
+
 - Reconciled release baseline `v1.2.1` at
   `61e3e2ae4135acd9eff55bf2a3a15fb4677d3f33`; the existing tag points at the
   release commit. Installer candidate changes remain uncommitted by request.
