@@ -219,7 +219,7 @@ case_vesktop_lifecycle() {
         cp -- "$CASE_ROOT/overlay" "$CASE_ROOT/path with spaces/overlay"
         space_unit="$CASE_ROOT/space.service"
         (
-            # shellcheck source=../install.sh
+            # shellcheck source=install.sh
             source "$INSTALLER"
             OVERLAY_EXECUTABLE="$CASE_ROOT/path with spaces/overlay"
             export OVERLAY_EXECUTABLE

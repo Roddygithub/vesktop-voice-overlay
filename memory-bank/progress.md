@@ -130,7 +130,10 @@
 - The follow-up CI run reduced the remaining ShellCheck failure to an unused
   local declaration and dynamic test-source analysis. The declaration is now
   removed and CI runs ShellCheck with `-x` so the explicitly documented
-  `../install.sh` test source is followed rather than suppressed.
+  `install.sh` test source is followed rather than suppressed.
+- The next CI run confirmed source following and reduced the last failure to
+  the directive's relative path. It now points to the checkout-root
+  `install.sh`, matching the CI working directory.
 
 - Reconciled release baseline `v1.2.1` at
   `61e3e2ae4135acd9eff55bf2a3a15fb4677d3f33`; the existing tag points at the
