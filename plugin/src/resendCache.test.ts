@@ -10,6 +10,7 @@ import {
 const SETTINGS_LINE =
     '{"type":"settings","settings":{"enabled":true,"position":"top-right"}}';
 const SNAPSHOT_LINE = '{"version":1,"timestamp":1,"self":{},"participants":[]}';
+const CLEAR_LINE = '{"type":"clear"}';
 
 describe('classifyMessage', () => {
     it('classifies settings messages', () => {
@@ -18,6 +19,10 @@ describe('classifyMessage', () => {
 
     it('classifies v1 snapshots', () => {
         expect(classifyMessage(SNAPSHOT_LINE)).toBe('snapshot');
+    });
+
+    it('classifies clear messages', () => {
+        expect(classifyMessage(CLEAR_LINE)).toBe('clear');
     });
 
     it('rejects invalid JSON and unknown payloads', () => {
@@ -68,5 +73,22 @@ describe('ResendCache', () => {
         expect(lines).toHaveLength(2);
         expect(lines[0]).toBe(newerSettings);
         expect(lines[1]).toBe(SNAPSHOT_LINE);
+    });
+
+    it('replaces a stale snapshot with the latest clear state', () => {
+        const cache = new ResendCache();
+        cache.record(SETTINGS_LINE);
+        cache.record(SNAPSHOT_LINE);
+        cache.record(CLEAR_LINE);
+
+        expect(cache.resendLines()).toEqual([SETTINGS_LINE, CLEAR_LINE]);
+    });
+
+    it('replaces a clear with a newly joined channel snapshot', () => {
+        const cache = new ResendCache();
+        cache.record(CLEAR_LINE);
+        cache.record(SNAPSHOT_LINE);
+
+        expect(cache.resendLines()).toEqual([SNAPSHOT_LINE]);
     });
 });

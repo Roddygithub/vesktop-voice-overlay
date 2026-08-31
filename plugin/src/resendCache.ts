@@ -1,4 +1,4 @@
-export type MessageKind = "settings" | "snapshot" | "other";
+export type MessageKind = "settings" | "snapshot" | "clear" | "other";
 
 /** Reconnect backoff: gentle doubling capped well below the old 30s pause
  * phase, so recovery after an overlay restart lands under ~2 seconds. */
@@ -16,6 +16,7 @@ export function classifyMessage(line: string): MessageKind {
         if (parsed && typeof parsed === "object") {
             const obj = parsed as Record<string, unknown>;
             if (obj.type === "settings") return "settings";
+            if (obj.type === "clear") return "clear";
             if (obj.version === 1) return "snapshot";
         }
         return "other";
@@ -29,7 +30,7 @@ export function classifyMessage(line: string): MessageKind {
  * activity in Discord. */
 export class ResendCache {
     private settingsLine: string | null = null;
-    private snapshotLine: string | null = null;
+    private stateLine: string | null = null;
 
     record(line: string): void {
         switch (classifyMessage(line)) {
@@ -37,7 +38,8 @@ export class ResendCache {
                 this.settingsLine = line;
                 break;
             case "snapshot":
-                this.snapshotLine = line;
+            case "clear":
+                this.stateLine = line;
                 break;
             case "other":
                 break;
@@ -46,7 +48,7 @@ export class ResendCache {
 
     /** Latest state to replay after a (re)connect, oldest first. */
     resendLines(): string[] {
-        return [this.settingsLine, this.snapshotLine].filter(
+        return [this.settingsLine, this.stateLine].filter(
             (line): line is string => line !== null,
         );
     }

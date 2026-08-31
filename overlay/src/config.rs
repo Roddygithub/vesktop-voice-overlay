@@ -11,8 +11,6 @@ pub struct Config {
     #[serde(default)]
     pub overlay: OverlayConfig,
     #[serde(default)]
-    pub appearance: AppearanceConfig,
-    #[serde(default)]
     pub socket: SocketConfig,
 }
 
@@ -53,8 +51,6 @@ pub struct OverlayConfig {
     pub custom_y: i32,
     #[serde(default = "default_max_participants")]
     pub max_participants: usize,
-    #[serde(default = "default_avatar_size")]
-    pub avatar_size: i32,
     #[serde(default)]
     pub user_display: UserDisplayMode,
     #[serde(default)]
@@ -92,30 +88,9 @@ impl Default for OverlayConfig {
             custom_x: 0,
             custom_y: 0,
             max_participants: default_max_participants(),
-            avatar_size: default_avatar_size(),
             user_display: UserDisplayMode::default(),
             name_display: NameDisplayMode::default(),
             avatar_size_mode: AvatarSizeMode::default(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AppearanceConfig {
-    #[serde(default = "default_theme")]
-    pub theme: String,
-    #[serde(default = "default_pulse_ms")]
-    pub speaking_pulse_ms: u64,
-    #[serde(default = "default_true")]
-    pub show_names: bool,
-}
-
-impl Default for AppearanceConfig {
-    fn default() -> Self {
-        Self {
-            theme: default_theme(),
-            speaking_pulse_ms: default_pulse_ms(),
-            show_names: default_true(),
         }
     }
 }
@@ -140,22 +115,13 @@ fn default_position() -> String {
 fn default_max_participants() -> usize {
     10
 }
-fn default_avatar_size() -> i32 {
-    28
-}
-fn default_theme() -> String {
-    "auto".into()
-}
-fn default_pulse_ms() -> u64 {
-    1000
-}
 fn default_true() -> bool {
     true
 }
 fn default_socket_path() -> String {
     std::env::var("XDG_RUNTIME_DIR")
         .map(|dir| format!("{}/vesktop-voice-overlay.sock", dir))
-        .unwrap_or_else(|_| format!("/tmp/vesktop-voice-overlay-{}.sock", std::process::id()))
+        .unwrap_or_default()
 }
 
 static CONFIG_PATH: Lazy<PathBuf> = Lazy::new(|| {
@@ -176,8 +142,11 @@ impl Config {
         Ok(config)
     }
 
-    pub fn socket_path(&self) -> &str {
-        &self.socket.path
+    pub fn socket_path(&self) -> Result<&str> {
+        if self.socket.path.is_empty() {
+            anyhow::bail!("XDG_RUNTIME_DIR is required unless socket.path is configured");
+        }
+        Ok(&self.socket.path)
     }
 
     pub fn apply_overlay_settings(&mut self, settings: OverlaySettings) {
@@ -231,5 +200,32 @@ mod tests {
 
         assert_eq!(config.overlay.avatar_size_mode, AvatarSizeMode::Large);
         assert_eq!(config.avatar_size_px(), 40);
+    }
+
+    #[test]
+    fn missing_runtime_directory_fails_closed() {
+        let mut config = Config::default();
+        config.socket.path.clear();
+        assert!(config.socket_path().is_err());
+    }
+
+    #[test]
+    fn legacy_appearance_and_numeric_avatar_fields_remain_compatible() {
+        let config: Config = toml::from_str(
+            r#"
+                [overlay]
+                max_participants = 7
+                avatar_size = 40
+
+                [appearance]
+                theme = "dark"
+                speaking_pulse_ms = 500
+                show_names = false
+            "#,
+        )
+        .expect("legacy keys remain accepted");
+
+        assert_eq!(config.overlay.max_participants, 7);
+        assert_eq!(config.overlay.avatar_size_mode, AvatarSizeMode::Small);
     }
 }

@@ -4,6 +4,7 @@ use gtk4::{
     pango, Align, Box, Image, Label, ListBox, ListBoxRow, Orientation, Overlay, SelectionMode,
 };
 use std::cell::RefCell;
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -50,32 +51,8 @@ impl ParticipantList {
             return false;
         }
 
-        let user_display = config.overlay.user_display;
         let name_display = config.overlay.name_display;
-        let max = config.overlay.max_participants;
-        let mut desired = Vec::with_capacity(snapshot.participants.len() + 1);
-        let self_participant = self.to_participant(&snapshot.self_);
-        if Self::is_user_visible(user_display, &self_participant) {
-            desired.push((snapshot.self_.user_id.clone(), self_participant));
-        }
-
-        desired.extend(
-            snapshot
-                .participants
-                .iter()
-                .filter(|participant| Self::is_user_visible(user_display, participant))
-                .take(max)
-                .map(|participant| (participant.user_id.clone(), participant.clone())),
-        );
-
-        // Deterministic stable ordering: self first, then others sorted by
-        // display name (case-insensitive). Existing rows are never reordered
-        // (visual stability); this sort governs the order new rows appear in.
-        let self_user_id = snapshot.self_.user_id.clone();
-        desired.sort_by_key(|(id, participant)| {
-            let is_self = id == &self_user_id;
-            (!is_self, participant.username.to_lowercase())
-        });
+        let desired = Self::desired_participants(&config, snapshot);
 
         let desired_ids: std::collections::HashSet<_> =
             desired.iter().map(|(id, _)| id.clone()).collect();
@@ -91,17 +68,25 @@ impl ParticipantList {
             }
         }
 
-        for (user_id, participant) in &desired {
-            if let Some(existing) = rows.get(user_id) {
-                existing.update(
-                    participant,
-                    Self::is_name_visible(name_display, participant),
-                    config.avatar_size_px(),
-                );
-            } else {
+        for (index, (user_id, participant)) in desired.iter().enumerate() {
+            if !rows.contains_key(user_id) {
                 let participant_row = ParticipantRow::new(&config, participant);
                 self.list_box.append(&participant_row.row);
                 rows.insert(user_id.clone(), participant_row);
+            }
+
+            let existing = &rows[user_id];
+            existing.update(
+                participant,
+                Self::is_name_visible(name_display, participant),
+                config.avatar_size_px(),
+            );
+
+            // Reuse the keyed row but move it when joins, leaves, or renamed
+            // users change the authoritative sort order.
+            if existing.row.index() != index as i32 {
+                self.list_box.remove(&existing.row);
+                self.list_box.insert(&existing.row, index as i32);
             }
         }
 
@@ -115,7 +100,63 @@ impl ParticipantList {
         }
     }
 
-    fn to_participant(&self, self_: &crate::protocol::ParticipantSelf) -> Participant {
+    fn desired_participants(config: &Config, snapshot: &Snapshot) -> Vec<(String, Participant)> {
+        let self_participant = Self::to_participant(&snapshot.self_);
+        let mut desired = Vec::with_capacity(
+            snapshot
+                .participants
+                .len()
+                .min(config.overlay.max_participants)
+                + 1,
+        );
+        if Self::is_user_visible(config.overlay.user_display, &self_participant) {
+            desired.push((snapshot.self_.user_id.clone(), self_participant));
+        }
+
+        let mut unique = HashMap::<&str, &Participant>::new();
+        for participant in &snapshot.participants {
+            if participant.user_id == snapshot.self_.user_id
+                || !Self::is_user_visible(config.overlay.user_display, participant)
+            {
+                continue;
+            }
+            unique
+                .entry(&participant.user_id)
+                .and_modify(|current| {
+                    if Self::compare_duplicate(participant, current).is_lt() {
+                        *current = participant;
+                    }
+                })
+                .or_insert(participant);
+        }
+        let mut others: Vec<_> = unique
+            .into_iter()
+            .map(|(id, participant)| (id.to_string(), participant.clone()))
+            .collect();
+        others.sort_by(|(left_id, left), (right_id, right)| {
+            left.username
+                .to_lowercase()
+                .cmp(&right.username.to_lowercase())
+                .then_with(|| left_id.cmp(right_id))
+        });
+        others.truncate(config.overlay.max_participants);
+        desired.extend(others);
+        desired
+    }
+
+    fn compare_duplicate(left: &Participant, right: &Participant) -> Ordering {
+        left.username
+            .to_lowercase()
+            .cmp(&right.username.to_lowercase())
+            .then_with(|| left.username.cmp(&right.username))
+            .then_with(|| left.avatar_url.cmp(&right.avatar_url))
+            .then_with(|| left.mute.cmp(&right.mute))
+            .then_with(|| left.deaf.cmp(&right.deaf))
+            .then_with(|| left.speaking.cmp(&right.speaking))
+            .then_with(|| left.volume.cmp(&right.volume))
+    }
+
+    fn to_participant(self_: &crate::protocol::ParticipantSelf) -> Participant {
         Participant {
             user_id: self_.user_id.clone(),
             username: self_.username.clone(),
@@ -216,6 +257,7 @@ impl ParticipantRow {
         self.name.set_text(&participant.username);
         self.name.set_visible(name_visible);
         self.avatar.set_size(avatar_size);
+        self.avatar.update_url(&participant.avatar_url);
 
         // Deaf implies mute: show the deaf badge alone when both are active.
         let show_mute = participant.mute && !participant.deaf;
@@ -234,8 +276,81 @@ impl ParticipantRow {
 }
 
 #[cfg(test)]
+pub(super) fn assert_gtk_row_updates() {
+    use crate::protocol::{ParticipantSelf, PROTOCOL_VERSION};
+
+    let participant = |id: &str, name: &str, speaking: bool, mute: bool, deaf: bool| Participant {
+        user_id: id.into(),
+        username: name.into(),
+        avatar_url: String::new(),
+        mute,
+        deaf,
+        speaking,
+        volume: None,
+    };
+    let snapshot = |self_speaking: bool, participants: Vec<Participant>| Snapshot {
+        version: PROTOCOL_VERSION,
+        timestamp: 0,
+        self_: ParticipantSelf {
+            user_id: "me".into(),
+            username: "Me".into(),
+            avatar_url: String::new(),
+            mute: false,
+            deaf: false,
+            speaking: self_speaking,
+        },
+        participants,
+    };
+
+    let mut config = Config::default();
+    config.overlay.user_display = UserDisplayMode::Always;
+    config.overlay.name_display = NameDisplayMode::Always;
+    config.overlay.max_participants = 2;
+    let config = Rc::new(RefCell::new(config));
+    let list = ParticipantList::new(config.clone()).expect("participant list builds");
+
+    assert!(list.update(&snapshot(
+        true,
+        vec![
+            participant("b", "Bob", false, true, false),
+            participant("a", "Alice", false, false, true),
+        ],
+    )));
+    let rows = list.rows.borrow();
+    let b_row = rows["b"].row.clone();
+    assert_eq!(rows["me"].row.index(), 0);
+    assert_eq!(rows["a"].row.index(), 1);
+    assert_eq!(rows["b"].row.index(), 2);
+    assert!(rows["a"].deaf_badge.is_visible());
+    assert!(!rows["a"].mute_badge.is_visible());
+    assert!(rows["b"].mute_badge.is_visible());
+    drop(rows);
+
+    assert!(list.update(&snapshot(
+        true,
+        vec![
+            participant("c", "Cara", false, false, false),
+            participant("b", "Aaron", true, false, false),
+        ],
+    )));
+    let rows = list.rows.borrow();
+    assert_eq!(rows["b"].row, b_row, "keyed row must be reused");
+    assert_eq!(rows["b"].row.index(), 1, "renamed row must move");
+    assert_eq!(rows["b"].name.text(), "Aaron");
+    assert!(rows["b"].row.has_css_class("speaking"));
+    assert!(!rows.contains_key("a"), "departed row must be removed");
+    drop(rows);
+
+    config.borrow_mut().overlay.user_display = UserDisplayMode::SpeakingOnly;
+    assert!(!list.update(&snapshot(false, Vec::new())));
+    assert!(list.rows.borrow().is_empty());
+    assert!(list.list_box.first_child().is_none());
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
+    use crate::protocol::{ParticipantSelf, PROTOCOL_VERSION};
 
     fn make_participant(
         id: &str,
@@ -255,36 +370,39 @@ mod tests {
         }
     }
 
-    fn sort_key(self_id: &str, p: &Participant) -> (bool, String) {
-        let is_self = p.user_id == self_id;
-        (!is_self, p.username.to_lowercase())
+    fn snapshot(participants: Vec<Participant>) -> Snapshot {
+        Snapshot {
+            version: PROTOCOL_VERSION,
+            timestamp: 0,
+            self_: ParticipantSelf {
+                user_id: "me".into(),
+                username: "Me".into(),
+                avatar_url: String::new(),
+                mute: false,
+                deaf: false,
+                speaking: true,
+            },
+            participants,
+        }
     }
 
     #[test]
     fn ordering_is_deterministic_for_equivalent_snapshots() {
-        let self_id = "me";
         let participants = vec![
             make_participant("c", "Charlie", false, false, false),
             make_participant("a", "alice", false, false, false),
             make_participant("b", "Bob", false, false, false),
         ];
+        let mut config = Config::default();
+        config.overlay.user_display = UserDisplayMode::Always;
 
-        let mut sorted1 = participants.clone();
-        sorted1.sort_by_key(|a| sort_key(self_id, a));
-        let mut sorted2 = participants.clone();
-        sorted2.sort_by_key(|a| sort_key(self_id, a));
-
-        let ids1: Vec<&str> = sorted1.iter().map(|p| p.user_id.as_str()).collect();
-        let ids2: Vec<&str> = sorted2.iter().map(|p| p.user_id.as_str()).collect();
-        assert_eq!(
-            ids1, ids2,
-            "equivalent snapshots must produce identical order"
-        );
+        let desired = ParticipantList::desired_participants(&config, &snapshot(participants));
+        let ids: Vec<_> = desired.iter().map(|(id, _)| id.as_str()).collect();
+        assert_eq!(ids, ["me", "a", "b", "c"]);
     }
 
     #[test]
     fn speaking_state_change_does_not_alter_ordering() {
-        let self_id = "me";
         let not_speaking = vec![
             make_participant("b", "Bob", false, false, false),
             make_participant("a", "Alice", false, false, false),
@@ -294,81 +412,63 @@ mod tests {
             make_participant("a", "Alice", true, false, false),
         ];
 
-        let mut s1 = not_speaking;
-        s1.sort_by_key(|a| sort_key(self_id, a));
-        let mut s2 = speaking;
-        s2.sort_by_key(|a| sort_key(self_id, a));
+        let mut config = Config::default();
+        config.overlay.user_display = UserDisplayMode::Always;
+        let s1 = ParticipantList::desired_participants(&config, &snapshot(not_speaking));
+        let s2 = ParticipantList::desired_participants(&config, &snapshot(speaking));
 
-        let ids1: Vec<&str> = s1.iter().map(|p| p.user_id.as_str()).collect();
-        let ids2: Vec<&str> = s2.iter().map(|p| p.user_id.as_str()).collect();
+        let ids1: Vec<_> = s1.iter().map(|(id, _)| id.as_str()).collect();
+        let ids2: Vec<_> = s2.iter().map(|(id, _)| id.as_str()).collect();
         assert_eq!(ids1, ids2, "speaking state must not change ordering");
     }
 
     #[test]
     fn self_sorts_first_regardless_of_username() {
-        let self_id = "zzz";
         let participants = vec![
-            make_participant("zzz", "Zed", false, false, false),
+            make_participant("me", "Duplicate self", true, false, false),
             make_participant("a", "Alice", false, false, false),
             make_participant("m", "Bob", false, false, false),
         ];
+        let mut config = Config::default();
+        config.overlay.user_display = UserDisplayMode::Always;
+        let desired = ParticipantList::desired_participants(&config, &snapshot(participants));
 
-        let mut sorted = participants;
-        sorted.sort_by_key(|a| sort_key(self_id, a));
-
-        assert_eq!(sorted[0].user_id, "zzz", "self must always sort first");
-        assert_eq!(sorted[1].username, "Alice");
-        assert_eq!(sorted[2].username, "Bob");
+        assert_eq!(desired[0].0, "me", "self must always be first");
+        assert_eq!(desired[0].1.username, "Me", "duplicate self is ignored");
+        assert_eq!(desired[1].1.username, "Alice");
+        assert_eq!(desired[2].1.username, "Bob");
     }
 
     #[test]
-    fn deaf_implies_mute_badge_visibility() {
-        // deaf=true, mute=true → show deaf badge only (implies mute)
-        let p = make_participant("a", "Alice", false, true, true);
-        let show_mute = p.mute && !p.deaf;
-        let show_deaf = p.deaf;
-        assert!(!show_mute, "deaf badge replaces mute badge");
-        assert!(show_deaf, "deaf badge shown when deaf");
-
-        // deaf=false, mute=true → show mute badge only
-        let p = make_participant("a", "Alice", false, true, false);
-        let show_mute = p.mute && !p.deaf;
-        let show_deaf = p.deaf;
-        assert!(show_mute, "mute badge shown when mute without deaf");
-        assert!(!show_deaf, "deaf badge hidden when not deaf");
-
-        // neither → no badges
-        let p = make_participant("a", "Alice", false, false, false);
-        let show_mute = p.mute && !p.deaf;
-        let show_deaf = p.deaf;
-        assert!(!show_mute);
-        assert!(!show_deaf);
-    }
-
-    #[test]
-    fn ordering_survives_join_and_leave() {
-        let self_id = "me";
-
-        // Initial: me + Alice + Bob
-        let mut participants = vec![
-            make_participant("me", "Me", false, false, false),
-            make_participant("b", "Bob", false, false, false),
+    fn max_participants_is_applied_after_sorting_and_deduplication() {
+        let mut config = Config::default();
+        config.overlay.user_display = UserDisplayMode::Always;
+        config.overlay.max_participants = 2;
+        let participants = vec![
+            make_participant("z", "Zulu", false, false, false),
             make_participant("a", "Alice", false, false, false),
+            make_participant("a", "Duplicate Alice", false, false, false),
+            make_participant("b", "Bob", false, false, false),
         ];
-        participants.sort_by_key(|a| sort_key(self_id, a));
-        let ids1: Vec<&str> = participants.iter().map(|p| p.user_id.as_str()).collect();
-        assert_eq!(ids1, vec!["me", "a", "b"]);
 
-        // Charlie joins
-        participants.push(make_participant("c", "Charlie", false, false, false));
-        participants.sort_by_key(|a| sort_key(self_id, a));
-        let ids2: Vec<&str> = participants.iter().map(|p| p.user_id.as_str()).collect();
-        assert_eq!(ids2, vec!["me", "a", "b", "c"]);
+        let desired =
+            ParticipantList::desired_participants(&config, &snapshot(participants.clone()));
+        let ids: Vec<_> = desired.iter().map(|(id, _)| id.as_str()).collect();
+        assert_eq!(ids, ["me", "a", "b"]);
+        assert_eq!(desired[1].1.username, "Alice");
 
-        // Alice leaves
-        participants.retain(|p| p.user_id != "a");
-        participants.sort_by_key(|a| sort_key(self_id, a));
-        let ids3: Vec<&str> = participants.iter().map(|p| p.user_id.as_str()).collect();
-        assert_eq!(ids3, vec!["me", "b", "c"]);
+        let reversed = ParticipantList::desired_participants(
+            &config,
+            &snapshot(participants.into_iter().rev().collect()),
+        );
+        let reversed_values: Vec<_> = reversed
+            .into_iter()
+            .map(|(id, participant)| (id, participant.username))
+            .collect();
+        let desired_values: Vec<_> = desired
+            .into_iter()
+            .map(|(id, participant)| (id, participant.username))
+            .collect();
+        assert_eq!(reversed_values, desired_values);
     }
 }

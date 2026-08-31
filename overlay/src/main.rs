@@ -13,7 +13,7 @@ use gtk4::Application;
 use std::panic;
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use tracing_subscriber::prelude::*;
 
 use crate::config::Config;
@@ -107,15 +107,30 @@ fn main() -> Result<()> {
 }
 
 fn run_application(app: &Application) -> Result<()> {
-    let config = Config::load().unwrap_or_default();
+    let config = match Config::load() {
+        Ok(config) => config,
+        Err(error)
+            if error
+                .downcast_ref::<std::io::Error>()
+                .is_some_and(|error| error.kind() == std::io::ErrorKind::NotFound) =>
+        {
+            Config::default()
+        }
+        Err(error) => {
+            warn!("Ignoring invalid configuration: {error}");
+            Config::default()
+        }
+    };
     let config = Arc::new(config);
 
-    let (cmd_tx, mut cmd_rx) = mpsc::unbounded_channel();
+    // Backpressure socket readers instead of allowing speaking storms or a
+    // same-user client to grow the GTK command queue without bound.
+    let (cmd_tx, mut cmd_rx) = mpsc::channel(256);
 
     // Bind synchronously before touching GTK: a second overlay instance
     // (e.g. manual launch while the systemd service runs) must fail here
     // instead of running a second UI against a dead socket.
-    let server = SocketServer::new(config.socket_path().to_string(), cmd_tx.clone());
+    let server = SocketServer::new(config.socket_path()?.to_string(), cmd_tx.clone());
     let listener = server.bind()?;
 
     let window = create_layer_shell_window(app, &config)?;
@@ -169,14 +184,15 @@ fn run_application(app: &Application) -> Result<()> {
                         window_clone.hide();
                     }
                 }
-                OverlayCommand::Show => {
-                    info!("Showing overlay window");
-                    if !window_clone.is_visible() {
-                        window_clone.present();
-                    }
+                OverlayCommand::Clear => {
+                    ui.clear();
+                    window_clone.hide();
                 }
                 OverlayCommand::Hide => {
-                    window_clone.hide();
+                    if lifecycle.should_hide() {
+                        ui.clear();
+                        window_clone.hide();
+                    }
                 }
                 OverlayCommand::ClientConnected => {
                     lifecycle.on_client_connected();
@@ -184,23 +200,18 @@ fn run_application(app: &Application) -> Result<()> {
                 OverlayCommand::ClientDisconnected => {
                     lifecycle.on_client_disconnected();
                 }
-                OverlayCommand::SocketReady => {
-                    lifecycle.set_socket_ready(true);
-                }
-                OverlayCommand::SocketNotReady => {
-                    lifecycle.set_socket_ready(false);
-                }
             }
         }
     });
 
-    std::thread::spawn(move || {
-        let runtime = tokio::runtime::Runtime::new().expect("create socket server runtime");
-        let mut server = server;
-        if let Err(e) = runtime.block_on(async move { server.run(listener) }) {
-            error!("Socket server error: {}", e);
-        }
-    });
+    std::thread::Builder::new()
+        .name("overlay-ipc-listener".to_string())
+        .spawn(move || {
+            let mut server = server;
+            if let Err(e) = server.run(listener) {
+                error!("Socket server error: {}", e);
+            }
+        })?;
 
     let window_clone = window.clone();
     app.connect_shutdown(move |_| {

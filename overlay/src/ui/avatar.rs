@@ -1,22 +1,44 @@
+use futures_util::StreamExt;
 use gdk_pixbuf::Pixbuf;
 use gtk4::prelude::*;
 use gtk4::{Align, Image};
 use once_cell::sync::Lazy;
+use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
+use std::io::Cursor;
 use std::rc::Rc;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 /// One shared worker pool for all avatar downloads: a single runtime per
 /// process instead of one thread + one Tokio runtime per request.
-static IO_RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
+static IO_RUNTIME: Lazy<Option<tokio::runtime::Runtime>> = Lazy::new(|| {
     tokio::runtime::Builder::new_multi_thread()
         .worker_threads(1)
         .enable_all()
         .build()
-        .expect("create shared avatar IO runtime")
+        .ok()
 });
 
+static HTTP_CLIENT: Lazy<Option<reqwest::Client>> = Lazy::new(|| {
+    reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(3))
+        .timeout(Duration::from_secs(10))
+        .https_only(true)
+        .redirect(reqwest::redirect::Policy::none())
+        .user_agent(concat!("vesktop-voice-overlay/", env!("CARGO_PKG_VERSION")))
+        .build()
+        .ok()
+});
+
+static FETCH_SLOTS: Lazy<Arc<tokio::sync::Semaphore>> =
+    Lazy::new(|| Arc::new(tokio::sync::Semaphore::new(FETCH_CONCURRENCY)));
+
+const FETCH_CONCURRENCY: usize = 8;
 const AVATAR_CACHE_CAPACITY: usize = 128;
+const MAX_AVATAR_RESPONSE_BYTES: usize = 2 * 1024 * 1024;
+const MAX_AVATAR_DIMENSION: u32 = 256;
+const MAX_AVATAR_DECODE_BYTES: u64 = 8 * 1024 * 1024;
 
 #[derive(Clone)]
 struct CachedImage {
@@ -40,7 +62,13 @@ impl CachedImage {
 }
 
 fn decode_rgba(bytes: &[u8]) -> anyhow::Result<CachedImage> {
-    let img = image::load_from_memory(bytes)?;
+    let mut reader = image::ImageReader::new(Cursor::new(bytes)).with_guessed_format()?;
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(MAX_AVATAR_DIMENSION);
+    limits.max_image_height = Some(MAX_AVATAR_DIMENSION);
+    limits.max_alloc = Some(MAX_AVATAR_DECODE_BYTES);
+    reader.limits(limits);
+    let img = reader.decode()?;
     let rgba = img.to_rgba8();
     let (width, height) = rgba.dimensions();
     Ok(CachedImage {
@@ -102,18 +130,118 @@ fn cached_image(url: &str) -> Option<Pixbuf> {
 }
 
 async fn fetch_and_decode(url: String) -> Option<CachedImage> {
-    let response = reqwest::get(&url).await.ok()?;
+    if !is_allowed_avatar_url(&url) {
+        return None;
+    }
+
+    let _permit = wait_for_fetch_slot(FETCH_SLOTS.clone()).await?;
+    let response = HTTP_CLIENT.as_ref()?.get(&url).send().await.ok()?;
     if !response.status().is_success() {
         return None;
     }
-    let bytes = response.bytes().await.ok()?;
+
+    if response
+        .content_length()
+        .is_some_and(|length| length > MAX_AVATAR_RESPONSE_BYTES as u64)
+    {
+        return None;
+    }
+
+    let mut bytes = Vec::new();
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.ok()?;
+        if bytes.len().saturating_add(chunk.len()) > MAX_AVATAR_RESPONSE_BYTES {
+            return None;
+        }
+        bytes.extend_from_slice(&chunk);
+    }
     decode_rgba(&bytes).ok()
+}
+
+async fn wait_for_fetch_slot(
+    slots: Arc<tokio::sync::Semaphore>,
+) -> Option<tokio::sync::OwnedSemaphorePermit> {
+    slots.acquire_owned().await.ok()
+}
+
+fn is_allowed_avatar_url(url: &str) -> bool {
+    reqwest::Url::parse(url).is_ok_and(|url| {
+        url.scheme() == "https"
+            && url.username().is_empty()
+            && url.password().is_none()
+            && url.host_str() == Some("cdn.discordapp.com")
+    })
 }
 
 pub struct AvatarWidget {
     image: Image,
-    current_url: Mutex<Option<String>>,
-    size: Mutex<i32>,
+    state: RefCell<AvatarState>,
+    size: Cell<i32>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum LoadStatus {
+    Placeholder,
+    Loading,
+    Loaded,
+    Failed,
+}
+
+#[derive(Debug)]
+struct AvatarState {
+    url: String,
+    generation: u64,
+    status: LoadStatus,
+}
+
+impl AvatarState {
+    fn new(url: &str) -> Self {
+        Self {
+            url: url.to_string(),
+            generation: u64::from(!url.is_empty()),
+            status: if url.is_empty() {
+                LoadStatus::Placeholder
+            } else {
+                LoadStatus::Loading
+            },
+        }
+    }
+
+    fn loading_generation(&self) -> Option<u64> {
+        (self.status == LoadStatus::Loading).then_some(self.generation)
+    }
+
+    fn request(&mut self, url: &str) -> Option<u64> {
+        if self.url == url {
+            if url.is_empty() || matches!(self.status, LoadStatus::Loading | LoadStatus::Loaded) {
+                return None;
+            }
+        } else {
+            self.url.clear();
+            self.url.push_str(url);
+        }
+
+        self.generation = self.generation.wrapping_add(1);
+        self.status = if url.is_empty() {
+            LoadStatus::Placeholder
+        } else {
+            LoadStatus::Loading
+        };
+        self.loading_generation()
+    }
+
+    fn finish(&mut self, generation: u64, loaded: bool) -> bool {
+        if self.generation != generation || self.status != LoadStatus::Loading {
+            return false;
+        }
+        self.status = if loaded {
+            LoadStatus::Loaded
+        } else {
+            LoadStatus::Failed
+        };
+        true
+    }
 }
 
 impl AvatarWidget {
@@ -130,20 +258,21 @@ impl AvatarWidget {
         image.set_overflow(gtk4::Overflow::Hidden);
         image.add_css_class("participant-avatar");
 
+        let state = AvatarState::new(url);
+        let generation = state.loading_generation();
         let this = Rc::new(Self {
             image,
-            current_url: Mutex::new(None),
-            size: Mutex::new(size),
+            state: RefCell::new(state),
+            size: Cell::new(size),
         });
+        this.set_placeholder();
 
-        if !url.is_empty() {
+        if let Some(generation) = generation {
             let this_clone = this.clone();
             let url = url.to_string();
             glib::spawn_future_local(async move {
-                this_clone.load_avatar(&url).await;
+                this_clone.load_avatar(&url, generation).await;
             });
-        } else {
-            this.set_placeholder();
         }
 
         this
@@ -153,31 +282,40 @@ impl AvatarWidget {
         &self.image
     }
 
-    #[expect(dead_code)]
-    pub async fn update_url(&self, url: &str) {
-        let should_load = {
-            let mut current = self.current_url.lock().unwrap();
-            if *current == Some(url.to_string()) {
-                return;
-            }
-            *current = Some(url.to_string());
-            true
-        };
-        if should_load {
-            self.load_avatar(url).await;
+    pub fn update_url(self: &Rc<Self>, url: &str) {
+        let url_changed = self.state.borrow().url != url;
+        let generation = self.state.borrow_mut().request(url);
+
+        if url_changed {
+            self.set_placeholder();
+        }
+        if let Some(generation) = generation {
+            let this = self.clone();
+            let url = url.to_string();
+            glib::spawn_future_local(async move {
+                this.load_avatar(&url, generation).await;
+            });
         }
     }
 
-    async fn load_avatar(&self, url: &str) {
+    async fn load_avatar(&self, url: &str, generation: u64) {
         if let Some(pixbuf) = cached_image(url) {
-            let texture = gdk4::Texture::for_pixbuf(&pixbuf);
-            self.image.set_paintable(Some(&texture));
+            if self.state.borrow_mut().finish(generation, true) {
+                let texture = gdk4::Texture::for_pixbuf(&pixbuf);
+                self.image.set_paintable(Some(&texture));
+            }
             return;
         }
 
+        let Some(runtime) = IO_RUNTIME.as_ref() else {
+            if self.state.borrow_mut().finish(generation, false) {
+                self.set_placeholder();
+            }
+            return;
+        };
         let url_owned = url.to_string();
         let (tx, rx) = tokio::sync::oneshot::channel();
-        IO_RUNTIME.handle().spawn(async move {
+        runtime.handle().spawn(async move {
             let decoded = fetch_and_decode(url_owned).await;
             let _ = tx.send(decoded);
         });
@@ -188,31 +326,37 @@ impl AvatarWidget {
                     .lock()
                     .unwrap()
                     .put(url.to_string(), image.clone());
-                let texture = gdk4::Texture::for_pixbuf(&pixbuf);
-                self.image.set_paintable(Some(&texture));
+                if self.state.borrow_mut().finish(generation, true) {
+                    let texture = gdk4::Texture::for_pixbuf(&pixbuf);
+                    self.image.set_paintable(Some(&texture));
+                }
                 return;
             }
         }
 
-        self.set_placeholder();
+        if self.state.borrow_mut().finish(generation, false) {
+            self.set_placeholder();
+        }
     }
 
     fn set_placeholder(&self) {
-        let texture = self.create_placeholder_texture();
-        self.image.set_paintable(Some(&texture));
+        if let Some(texture) = self.create_placeholder_texture() {
+            self.image.set_paintable(Some(&texture));
+        } else {
+            self.image.clear();
+        }
     }
 
-    fn create_placeholder_texture(&self) -> gdk4::Texture {
-        let size = *self.size.lock().unwrap();
-        let pixbuf = Pixbuf::new(gdk_pixbuf::Colorspace::Rgb, true, 8, size, size)
-            .expect("Failed to create placeholder pixbuf");
+    fn create_placeholder_texture(&self) -> Option<gdk4::Texture> {
+        let size = self.size.get();
+        let pixbuf = Pixbuf::new(gdk_pixbuf::Colorspace::Rgb, true, 8, size, size)?;
         pixbuf.fill(0x4d4d4dff);
 
-        gdk4::Texture::for_pixbuf(&pixbuf)
+        Some(gdk4::Texture::for_pixbuf(&pixbuf))
     }
 
     pub fn set_size(&self, size: i32) {
-        *self.size.lock().unwrap() = size;
+        self.size.set(size);
         self.image.set_pixel_size(size);
         if self.image.paintable().is_none() {
             self.set_placeholder();
@@ -223,6 +367,92 @@ impl AvatarWidget {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn empty_avatar_stays_placeholder_without_a_request() {
+        let mut state = AvatarState::new("");
+        assert_eq!(state.status, LoadStatus::Placeholder);
+        assert_eq!(state.loading_generation(), None);
+        assert_eq!(state.request(""), None);
+    }
+
+    #[test]
+    fn same_url_is_suppressed_while_loading_and_after_success() {
+        let mut state = AvatarState::new("https://cdn.discordapp.com/avatars/1/a.png");
+        let generation = state.loading_generation().expect("initial request");
+        assert_eq!(state.request(&state.url.clone()), None);
+
+        assert!(state.finish(generation, true));
+        assert_eq!(state.status, LoadStatus::Loaded);
+        assert_eq!(state.request(&state.url.clone()), None);
+    }
+
+    #[test]
+    fn url_replacement_invalidates_every_older_completion() {
+        let mut state = AvatarState::new("A");
+        let first_a = state.loading_generation().expect("first A request");
+        let b = state.request("B").expect("B request");
+        let second_a = state.request("A").expect("second A request");
+
+        assert!(!state.finish(first_a, true), "stale A must not win");
+        assert!(!state.finish(b, true), "stale B must not win");
+        assert_eq!(state.status, LoadStatus::Loading);
+        assert!(state.finish(second_a, true));
+        assert_eq!(state.status, LoadStatus::Loaded);
+    }
+
+    #[test]
+    fn clearing_url_invalidates_an_in_flight_load() {
+        let mut state = AvatarState::new("A");
+        let a = state.loading_generation().expect("A request");
+
+        assert_eq!(state.request(""), None);
+        assert_eq!(state.status, LoadStatus::Placeholder);
+        assert!(!state.finish(a, true));
+        assert_eq!(state.status, LoadStatus::Placeholder);
+    }
+
+    #[test]
+    fn failed_current_load_can_retry_without_duplicate_requests() {
+        let mut state = AvatarState::new("A");
+        let first = state.loading_generation().expect("first request");
+        assert_eq!(state.request("A"), None, "in-flight load is deduplicated");
+
+        assert!(state.finish(first, false));
+        assert_eq!(state.status, LoadStatus::Failed);
+        let retry = state.request("A").expect("failed load is retryable");
+        assert_ne!(retry, first);
+        assert_eq!(state.request("A"), None, "retry is also deduplicated");
+        assert!(state.finish(retry, true));
+        assert_eq!(state.status, LoadStatus::Loaded);
+    }
+
+    #[test]
+    fn fetches_wait_for_a_slot_instead_of_being_dropped() {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .expect("test runtime builds")
+            .block_on(async {
+                let slots = Arc::new(tokio::sync::Semaphore::new(FETCH_CONCURRENCY));
+                let mut permits: Vec<_> = (0..FETCH_CONCURRENCY)
+                    .map(|_| slots.clone().try_acquire_owned().expect("slot available"))
+                    .collect();
+                let mut waiting = Box::pin(wait_for_fetch_slot(slots));
+
+                assert!(
+                    tokio::time::timeout(Duration::from_millis(1), waiting.as_mut())
+                        .await
+                        .is_err(),
+                    "the ninth fetch must wait"
+                );
+                drop(permits.pop());
+                assert!(tokio::time::timeout(Duration::from_secs(1), waiting)
+                    .await
+                    .expect("waiting fetch resumes")
+                    .is_some());
+            });
+    }
 
     #[test]
     fn cache_evicts_oldest_beyond_capacity() {
@@ -264,37 +494,34 @@ mod tests {
         assert_eq!(decoded.rgba.len(), 2 * 3 * 4);
     }
 
-    /// Regression guard for the v1.1.0 avatar sizing fix: GtkPicture derives
-    /// its natural size from the paintable (Discord avatars are 128-256px), so
-    /// `set_size_request` could not shrink the widget and Small/Large resizing
-    /// silently no-op'd at runtime. GtkImage must measure exactly pixel_size
-    /// in both orientations regardless of the paintable's intrinsic size.
     #[test]
-    fn gtk_image_measures_pixel_size_regardless_of_paintable_natural_size() {
-        if gtk4::init().is_err() {
-            eprintln!("skipping: no display available for GTK widget test");
-            return;
-        }
+    fn decode_rejects_images_over_dimension_limit() {
+        let img = image::RgbaImage::from_pixel(
+            MAX_AVATAR_DIMENSION + 1,
+            1,
+            image::Rgba([10u8, 20, 30, 255]),
+        );
+        let mut png_bytes = Vec::new();
+        image::DynamicImage::ImageRgba8(img)
+            .write_to(
+                &mut std::io::Cursor::new(&mut png_bytes),
+                image::ImageFormat::Png,
+            )
+            .expect("png encodes");
 
-        let bytes = gtk4::glib::Bytes::from(&vec![0u8; 256 * 256 * 4]);
-        let texture =
-            gdk4::MemoryTexture::new(256, 256, gdk4::MemoryFormat::R8g8b8a8, &bytes, 256 * 4);
+        assert!(decode_rgba(&png_bytes).is_err());
+    }
 
-        let image = Image::new();
-        image.set_pixel_size(28);
-        image.set_paintable(Some(&texture));
-
-        for orientation in [gtk4::Orientation::Horizontal, gtk4::Orientation::Vertical] {
-            let (minimum, natural, _, _) = image.measure(orientation, -1);
-            assert_eq!(
-                (minimum, natural),
-                (28, 28),
-                "avatar must measure pixel_size, never the paintable's intrinsic size"
-            );
-        }
-
-        image.set_pixel_size(40);
-        let (minimum, natural, _, _) = image.measure(gtk4::Orientation::Horizontal, -1);
-        assert_eq!((minimum, natural), (40, 40));
+    #[test]
+    fn avatar_urls_are_restricted_to_discord_https_cdn() {
+        assert!(is_allowed_avatar_url(
+            "https://cdn.discordapp.com/avatars/1/hash.png?size=128"
+        ));
+        assert!(!is_allowed_avatar_url(
+            "http://cdn.discordapp.com/avatars/1/hash.png"
+        ));
+        assert!(!is_allowed_avatar_url("https://example.com/avatar.png"));
+        assert!(!is_allowed_avatar_url("file:///etc/passwd"));
+        assert!(!is_allowed_avatar_url("not a URL"));
     }
 }

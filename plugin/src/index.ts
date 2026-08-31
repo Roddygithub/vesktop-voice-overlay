@@ -1,12 +1,20 @@
 import { definePluginSettings } from "@api/Settings";
 import definePlugin, { OptionType, PluginNative } from "@utils/types";
-import { serializeSnapshot } from "./protocol";
+import {
+    normalizeCoordinate,
+    serializeClear,
+    serializeSnapshot,
+    speakingEventState,
+    speakingEventUserId,
+} from "./protocol";
 import { getChannelSnapshot, setSpeaking, clearSpeaking, getCurrentVoiceChannelId, isInVoiceChannel } from "./voiceState";
 
 type NativeModule = PluginNative<typeof import("./native")>;
 let Native: NativeModule;
 let socketClient: { send: (data: string) => void; disconnect: () => void } | null = null;
 let currentChannelId: string | null = null;
+let lifecycleGeneration = 0;
+let clearSent = false;
 
 function sendSettings() {
     if (!socketClient) return;
@@ -16,8 +24,8 @@ function sendSettings() {
         settings: {
             enabled: settings.store.enabled,
             position: settings.store.position,
-            custom_x: settings.store.customX,
-            custom_y: settings.store.customY,
+            custom_x: normalizeCoordinate(settings.store.customX),
+            custom_y: normalizeCoordinate(settings.store.customY),
             user_display: settings.store.userDisplay,
             name_display: settings.store.nameDisplay,
             avatar_size_mode: settings.store.avatarSize,
@@ -68,6 +76,7 @@ const settings = definePluginSettings({
             { label: "Top left", value: "top-left" },
             { label: "Bottom right", value: "bottom-right" },
             { label: "Bottom left", value: "bottom-left" },
+            { label: "Center", value: "center" },
             { label: "Custom coordinates", value: "custom" },
         ],
         onChange: sendSettings,
@@ -88,11 +97,19 @@ const settings = definePluginSettings({
 
 function sendSnapshot() {
     if (!socketClient) return;
-    if (!isInVoiceChannel()) return;
+    if (!isInVoiceChannel()) {
+        if (!clearSent) socketClient.send(serializeClear());
+        clearSent = true;
+        return;
+    }
 
     const snapshot = getChannelSnapshot();
     if (snapshot) {
+        clearSent = false;
         socketClient.send(serializeSnapshot(snapshot));
+    } else if (!clearSent) {
+        socketClient.send(serializeClear());
+        clearSent = true;
     }
 }
 
@@ -112,12 +129,16 @@ export default definePlugin({
     settings,
 
     start() {
+        const generation = ++lifecycleGeneration;
+        clearSent = false;
         Native = VencordNative.pluginHelpers
             .VesktopVoiceOverlay as NativeModule;
 
         void (async () => {
             const socketPath = await Native.getSocketPath();
+            if (generation !== lifecycleGeneration) return;
             await Native.startSocket(socketPath);
+            if (generation !== lifecycleGeneration) return;
             socketClient = {
                 send: data => void Native.send(data),
                 disconnect: () => void Native.disconnect(),
@@ -126,12 +147,19 @@ export default definePlugin({
             sendSettings();
             currentChannelId = getCurrentVoiceChannelId();
             sendSnapshot();
-        })();
+        })().catch(error => {
+            if (generation !== lifecycleGeneration) return;
+            console.error(
+                "[Vesktop Voice Overlay] Failed to start socket client:",
+                error instanceof Error ? error.message : String(error),
+            );
+        });
 
         currentChannelId = getCurrentVoiceChannelId();
     },
 
     stop() {
+        lifecycleGeneration++;
         void Native?.disconnect();
         socketClient = null;
         clearSpeaking();
@@ -145,18 +173,15 @@ export default definePlugin({
         },
 
         SPEAKING(event: any) {
-            if (event?.userId) {
-                const speaking = event.speakingFlags !== undefined
-                    ? event.speakingFlags !== 0
-                    : event.speaking !== false && event.speaking !== 0;
-                setSpeaking(event.userId, speaking);
+            const userId = speakingEventUserId(event);
+            if (userId && setSpeaking(userId, speakingEventState(event))) {
                 sendSnapshot();
             }
         },
 
         STOP_SPEAKING(event: any) {
-            if (event?.userId) {
-                setSpeaking(event.userId, false);
+            const userId = speakingEventUserId(event);
+            if (userId && setSpeaking(userId, false)) {
                 sendSnapshot();
             }
         },

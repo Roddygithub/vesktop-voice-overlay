@@ -82,13 +82,19 @@ impl OverlayUI {
         visible
     }
 
+    pub fn clear(&self) {
+        self.last_snapshot.borrow_mut().take();
+        self.participant_list.reset();
+        self.container.set_visible(false);
+    }
+
     fn apply_css(window: &gtk4::ApplicationWindow) {
         let css = include_str!("style.css");
         let provider = gtk4::CssProvider::new();
         provider.load_from_data(css);
         // Display-level provider (covers all widgets)
         gtk4::style_context_add_provider_for_display(
-            &gtk4::gdk::Display::default().expect("No display"),
+            &gtk4::prelude::WidgetExt::display(window),
             &provider,
             800, // above Adwaita's APPLICATION priority (600)
         );
@@ -103,6 +109,8 @@ impl OverlayUI {
 mod tests {
     use super::*;
     use crate::protocol::{ParticipantSelf, PROTOCOL_VERSION};
+    use std::cell::RefCell;
+    use std::rc::Rc;
 
     fn snapshot_with_speaking_self(speaking: bool) -> Snapshot {
         Snapshot {
@@ -126,13 +134,7 @@ mod tests {
     /// ~236x58 rectangle on the desktop before Vesktop ever connected. The
     /// container must stay hidden until a snapshot yields visible rows and
     /// hide again whenever no participant is visible.
-    #[test]
-    fn container_visibility_tracks_visible_participants() {
-        if gtk4::init().is_err() {
-            eprintln!("skipping: no display available for GTK widget test");
-            return;
-        }
-
+    fn assert_container_visibility_tracks_visible_participants() {
         // Plain unassociated window (no GApplication): creating an
         // application-owned window before ::startup emits a Gtk-CRITICAL.
         let window = gtk4::ApplicationWindow::builder().build();
@@ -155,5 +157,66 @@ mod tests {
             !ui.container.is_visible(),
             "container must hide when no participant is visible"
         );
+    }
+
+    fn assert_bundled_css_has_no_gtk_parser_errors() {
+        let provider = gtk4::CssProvider::new();
+        let errors = Rc::new(RefCell::new(Vec::new()));
+        let captured = errors.clone();
+        provider.connect_parsing_error(move |_, _, error| {
+            captured.borrow_mut().push(error.to_string());
+        });
+
+        provider.load_from_data(include_str!("style.css"));
+
+        assert!(
+            errors.borrow().is_empty(),
+            "CSS errors: {:?}",
+            errors.borrow()
+        );
+    }
+
+    fn assert_avatar_measures_configured_pixel_size() {
+        // Regression guard for the v1.1.0 avatar sizing fix: GtkPicture derives
+        // its natural size from the paintable, while GtkImage must measure the
+        // configured pixel_size regardless of that intrinsic size.
+        let bytes = gtk4::glib::Bytes::from(&vec![0u8; 256 * 256 * 4]);
+        let texture =
+            gdk4::MemoryTexture::new(256, 256, gdk4::MemoryFormat::R8g8b8a8, &bytes, 256 * 4);
+        let image = gtk4::Image::new();
+        image.set_pixel_size(28);
+        image.set_paintable(Some(&texture));
+
+        for orientation in [gtk4::Orientation::Horizontal, gtk4::Orientation::Vertical] {
+            let (minimum, natural, _, _) = image.measure(orientation, -1);
+            assert_eq!(
+                (minimum, natural),
+                (28, 28),
+                "avatar must measure pixel_size, never the paintable's intrinsic size"
+            );
+        }
+
+        image.set_pixel_size(40);
+        let (minimum, natural, _, _) = image.measure(gtk4::Orientation::Horizontal, -1);
+        assert_eq!((minimum, natural), (40, 40));
+    }
+
+    #[test]
+    fn gtk_ui_regressions() {
+        if let Err(error) = gtk4::init() {
+            assert!(
+                std::env::var_os("CI").is_none(),
+                "GTK must initialize in CI: {error}"
+            );
+            eprintln!("skipping: no display available for GTK UI tests");
+            return;
+        }
+
+        // GTK initialization and widget access are process-global and must not
+        // run concurrently on the Rust test harness's worker threads.
+        assert_bundled_css_has_no_gtk_parser_errors();
+        assert_avatar_measures_configured_pixel_size();
+        assert_container_visibility_tracks_visible_participants();
+        participant_list::assert_gtk_row_updates();
     }
 }

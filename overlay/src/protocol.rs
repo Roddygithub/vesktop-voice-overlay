@@ -49,6 +49,7 @@ pub type Snapshot = SnapshotV1;
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ClientMessage {
     Settings { settings: OverlaySettings },
+    Clear,
 }
 
 impl Snapshot {
@@ -63,7 +64,7 @@ impl Snapshot {
         Some(snapshot)
     }
 
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn serialize(&self) -> String {
         serde_json::to_string(self).unwrap_or_default()
     }
@@ -78,6 +79,7 @@ pub fn deserialize_client_message(line: &str) -> Option<ClientMessage> {
     match &message {
         ClientMessage::Settings { settings } if settings.is_valid() => Some(message),
         ClientMessage::Settings { .. } => None,
+        ClientMessage::Clear => Some(message),
     }
 }
 
@@ -154,6 +156,14 @@ mod tests {
         assert!(matches!(
             deserialize_client_message(json),
             Some(ClientMessage::Settings { .. })
+        ));
+    }
+
+    #[test]
+    fn test_deserialize_clear_message() {
+        assert!(matches!(
+            deserialize_client_message(r#"{"type":"clear"}"#),
+            Some(ClientMessage::Clear)
         ));
     }
 

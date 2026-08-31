@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { serializeSnapshot, deserializeSnapshot, Snapshot, PROTOCOL_HEADER } from './protocol';
+import {
+  serializeSnapshot,
+  deserializeSnapshot,
+  normalizeCoordinate,
+  serializeClear,
+  speakingEventState,
+  speakingEventUserId,
+  Snapshot,
+  PROTOCOL_HEADER,
+} from './protocol';
 
 describe('Protocol v1', () => {
   const sampleSnapshot: Snapshot = {
@@ -53,6 +62,26 @@ describe('Protocol v1', () => {
 
   it('protocol header matches expected format', () => {
     expect(PROTOCOL_HEADER).toBe('VESKTOP_VOICE_OVERLAY/1.0\n');
+  });
+
+  it('serializes the authoritative clear message', () => {
+    expect(serializeClear()).toBe('{"type":"clear"}');
+  });
+
+  it('normalizes custom coordinates to server-valid integers', () => {
+    expect(normalizeCoordinate(12.9)).toBe(12);
+    expect(normalizeCoordinate(50000)).toBe(32768);
+    expect(normalizeCoordinate(-50000)).toBe(-32768);
+    expect(normalizeCoordinate(Number.NaN)).toBe(0);
+  });
+
+  it('accepts camelCase and snake_case speaking event fields', () => {
+    expect(speakingEventUserId({ userId: 'camel' })).toBe('camel');
+    expect(speakingEventUserId({ user_id: 'snake' })).toBe('snake');
+    expect(speakingEventUserId({ userId: 123 })).toBeNull();
+    expect(speakingEventState({ speakingFlags: 0 })).toBe(false);
+    expect(speakingEventState({ speaking_flags: 2 })).toBe(true);
+    expect(speakingEventState({ speaking: false })).toBe(false);
   });
 
   it('round-trip: serialize -> deserialize preserves data', () => {

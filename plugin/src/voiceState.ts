@@ -22,16 +22,14 @@ function getAvatarUrl(userId: string, avatar: string | null): string {
 
 const speakingUsers = new Set<string>();
 
-export function setSpeaking(userId: string, speaking: boolean) {
+export function setSpeaking(userId: string, speaking: boolean): boolean {
+    const changed = speakingUsers.has(userId) !== speaking;
     if (speaking) {
         speakingUsers.add(userId);
     } else {
         speakingUsers.delete(userId);
     }
-    console.info("[VVO] speaking set updated", {
-        speaking,
-        tracked: speakingUsers.has(userId),
-    });
+    return changed;
 }
 
 export function clearSpeaking() {
@@ -65,51 +63,55 @@ export function getCurrentVoiceChannelId(): string | null {
 }
 
 export function getChannelSnapshot(): Snapshot | null {
-    const currentUser = getCurrentUser();
-    if (!currentUser) return null;
+    try {
+        const currentUser = getCurrentUser();
+        if (!currentUser) return null;
 
-    const channelId = getCurrentVoiceChannelId();
-    if (!channelId) return null;
+        const channelId = getCurrentVoiceChannelId();
+        if (!channelId) return null;
 
-    const voiceStates: Record<string, any> = VoiceStateStore.getVoiceStatesForChannel(channelId);
-    if (!voiceStates || Object.keys(voiceStates).length === 0) return null;
+        const voiceStates: Record<string, any> = VoiceStateStore.getVoiceStatesForChannel(channelId);
+        if (!voiceStates || Object.keys(voiceStates).length === 0) return null;
 
-    const selfVoiceState = voiceStates[currentUser.id];
-    if (!selfVoiceState) return null;
+        const selfVoiceState = voiceStates[currentUser.id];
+        if (!selfVoiceState) return null;
 
-    const participants: Participant[] = [];
+        const participants: Participant[] = [];
 
-    for (const userId of Object.keys(voiceStates)) {
-        if (userId === currentUser.id) continue;
+        for (const userId of Object.keys(voiceStates)) {
+            if (userId === currentUser.id) continue;
 
-        const userVoiceState = voiceStates[userId];
-        const user = getUser(userId);
-        const username = user?.globalName ?? user?.username ?? "Unknown";
-        const avatar = user?.avatar ?? null;
+            const userVoiceState = voiceStates[userId];
+            const user = getUser(userId);
+            const username = user?.globalName ?? user?.username ?? "Unknown";
+            const avatar = user?.avatar ?? null;
 
-        participants.push({
-            userId,
-            username,
-            avatarUrl: getAvatarUrl(userId, avatar),
-            mute: userVoiceState.selfMute || userVoiceState.mute,
-            deaf: userVoiceState.selfDeaf || userVoiceState.deaf,
-            speaking: speakingUsers.has(userId),
-        });
+            participants.push({
+                userId,
+                username,
+                avatarUrl: getAvatarUrl(userId, avatar),
+                mute: Boolean(userVoiceState.selfMute || userVoiceState.mute),
+                deaf: Boolean(userVoiceState.selfDeaf || userVoiceState.deaf),
+                speaking: speakingUsers.has(userId),
+            });
+        }
+
+        const self: ParticipantSelf = {
+            userId: currentUser.id,
+            username: currentUser.globalName ?? currentUser.username,
+            avatarUrl: getAvatarUrl(currentUser.id, currentUser.avatar),
+            mute: Boolean(selfVoiceState.selfMute || selfVoiceState.mute),
+            deaf: Boolean(selfVoiceState.selfDeaf || selfVoiceState.deaf),
+            speaking: speakingUsers.has(currentUser.id),
+        };
+
+        return {
+            version: 1,
+            timestamp: Date.now(),
+            self,
+            participants,
+        };
+    } catch {
+        return null;
     }
-
-    const self: ParticipantSelf = {
-        userId: currentUser.id,
-        username: currentUser.globalName ?? currentUser.username,
-        avatarUrl: getAvatarUrl(currentUser.id, currentUser.avatar),
-        mute: selfVoiceState.selfMute || selfVoiceState.mute,
-        deaf: selfVoiceState.selfDeaf || selfVoiceState.deaf,
-        speaking: speakingUsers.has(currentUser.id),
-    };
-
-    return {
-        version: 1,
-        timestamp: Date.now(),
-        self,
-        participants,
-    };
 }

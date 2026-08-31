@@ -1,4 +1,5 @@
-use std::sync::{Arc, Mutex};
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{debug, info};
@@ -10,95 +11,74 @@ use crate::protocol::Snapshot;
 pub enum OverlayCommand {
     UpdateSnapshot(Snapshot),
     UpdateSettings(OverlaySettings),
-    Show,
+    Clear,
     Hide,
     ClientConnected,
     ClientDisconnected,
-    SocketReady,
-    SocketNotReady,
 }
 
-#[derive(Clone)]
 pub struct OverlayLifecycle {
-    snapshot: Arc<Mutex<Option<Snapshot>>>,
-    client_connected: Arc<Mutex<bool>>,
-    socket_ready: Arc<Mutex<bool>>,
-    cmd_tx: mpsc::UnboundedSender<OverlayCommand>,
-    hide_timeout: Arc<Mutex<Option<glib::SourceId>>>,
+    connected_clients: Cell<usize>,
+    cmd_tx: mpsc::Sender<OverlayCommand>,
+    hide_timeout: RefCell<Option<glib::SourceId>>,
 }
 
 impl OverlayLifecycle {
-    pub fn new(cmd_tx: mpsc::UnboundedSender<OverlayCommand>) -> Arc<Self> {
-        Arc::new(Self {
-            snapshot: Arc::new(Mutex::new(None)),
-            client_connected: Arc::new(Mutex::new(false)),
-            socket_ready: Arc::new(Mutex::new(false)),
+    pub fn new(cmd_tx: mpsc::Sender<OverlayCommand>) -> Rc<Self> {
+        Rc::new(Self {
+            connected_clients: Cell::new(0),
             cmd_tx,
-            hide_timeout: Arc::new(Mutex::new(None)),
+            hide_timeout: RefCell::new(None),
         })
     }
 
-    #[expect(dead_code)]
-    pub fn update_snapshot(&self, snapshot: Snapshot) {
-        {
-            let mut current = self.snapshot.lock().unwrap();
-            *current = Some(snapshot.clone());
-        }
-        let _ = self.cmd_tx.send(OverlayCommand::UpdateSnapshot(snapshot));
-        self.show_overlay();
-    }
-
     pub fn on_client_connected(&self) {
-        *self.client_connected.lock().unwrap() = true;
-        info!("Plugin connected");
+        self.connected_clients
+            .set(self.connected_clients.get().saturating_add(1));
+        info!("Plugin connected ({} active)", self.connected_clients.get());
         self.cancel_hide_timeout();
     }
 
-    pub fn on_client_disconnected(&self) {
-        *self.client_connected.lock().unwrap() = false;
-        info!("Plugin disconnected");
-        self.schedule_hide(Duration::from_secs(5));
-    }
-
-    pub fn set_socket_ready(&self, ready: bool) {
-        *self.socket_ready.lock().unwrap() = ready;
-        if !ready {
-            self.schedule_hide(Duration::from_secs(2));
-        } else {
-            self.cancel_hide_timeout();
+    pub fn on_client_disconnected(self: &Rc<Self>) {
+        let connected_clients = self.connected_clients.get();
+        if connected_clients == 0 {
+            debug!("Ignoring client disconnect with no active client");
+            return;
+        }
+        self.connected_clients.set(connected_clients - 1);
+        info!(
+            "Plugin disconnected ({} active)",
+            self.connected_clients.get()
+        );
+        if self.connected_clients.get() == 0 {
+            self.schedule_hide(Duration::from_secs(5));
         }
     }
 
-    fn show_overlay(&self) {
-        self.cancel_hide_timeout();
-        let _ = self.cmd_tx.send(OverlayCommand::Show);
-    }
-
-    fn schedule_hide(&self, delay: Duration) {
+    fn schedule_hide(self: &Rc<Self>, delay: Duration) {
         self.cancel_hide_timeout();
         let lifecycle = self.clone();
         let source_id = glib::timeout_add_local_once(delay, move || {
-            let connected = *lifecycle.client_connected.lock().unwrap();
-            let socket_ready = *lifecycle.socket_ready.lock().unwrap();
-
-            if !connected || !socket_ready {
-                *lifecycle.hide_timeout.lock().unwrap() = None;
-                let _ = lifecycle.cmd_tx.send(OverlayCommand::Hide);
-                debug!("Overlay hidden (no client or socket not ready)");
+            lifecycle.hide_timeout.borrow_mut().take();
+            if lifecycle.connected_clients.get() == 0 {
+                glib::spawn_future_local(async move {
+                    if lifecycle.cmd_tx.send(OverlayCommand::Hide).await.is_ok() {
+                        debug!("Queued overlay hide (no connected client)");
+                    }
+                });
             }
         });
-        *self.hide_timeout.lock().unwrap() = Some(source_id);
+        *self.hide_timeout.borrow_mut() = Some(source_id);
     }
 
     fn cancel_hide_timeout(&self) {
-        if let Some(id) = self.hide_timeout.lock().unwrap().take() {
+        if let Some(id) = self.hide_timeout.borrow_mut().take() {
             id.remove();
         }
     }
 
-    #[allow(dead_code)]
-    pub fn current_snapshot(&self) -> Option<Snapshot> {
-        self.snapshot.lock().unwrap().clone()
+    pub fn should_hide(&self) -> bool {
+        self.connected_clients.get() == 0
     }
 }
 
@@ -106,70 +86,53 @@ impl OverlayLifecycle {
 mod tests {
     use super::*;
 
-    fn make_lifecycle() -> (
-        Arc<OverlayLifecycle>,
-        mpsc::UnboundedReceiver<OverlayCommand>,
-    ) {
-        let (tx, rx) = mpsc::unbounded_channel();
+    fn make_lifecycle() -> (Rc<OverlayLifecycle>, mpsc::Receiver<OverlayCommand>) {
+        let (tx, rx) = mpsc::channel(8);
         (OverlayLifecycle::new(tx), rx)
     }
 
     #[test]
     fn on_client_connected_sets_flag_without_showing_empty_overlay() {
         let (lifecycle, mut rx) = make_lifecycle();
-        assert!(!*lifecycle.client_connected.lock().unwrap());
+        assert_eq!(lifecycle.connected_clients.get(), 0);
 
         lifecycle.on_client_connected();
 
-        assert!(*lifecycle.client_connected.lock().unwrap());
+        assert_eq!(lifecycle.connected_clients.get(), 1);
         assert!(rx.try_recv().is_err());
     }
 
     #[test]
-    fn on_client_connected_can_be_called_repeatedly() {
+    fn disconnecting_one_of_multiple_clients_does_not_schedule_hide() {
         let (lifecycle, mut rx) = make_lifecycle();
 
         lifecycle.on_client_connected();
         lifecycle.on_client_connected();
-        assert!(*lifecycle.client_connected.lock().unwrap());
+        lifecycle.on_client_disconnected();
+
+        assert_eq!(lifecycle.connected_clients.get(), 1);
+        assert!(lifecycle.hide_timeout.borrow().is_none());
         assert!(rx.try_recv().is_err());
     }
 
     #[test]
-    fn set_socket_ready_true_sets_flag() {
-        let (lifecycle, mut rx) = make_lifecycle();
-        assert!(!*lifecycle.socket_ready.lock().unwrap());
-
-        lifecycle.set_socket_ready(true);
-
-        assert!(*lifecycle.socket_ready.lock().unwrap());
-        // No commands sent when becoming ready (just cancels timeout)
-        assert!(rx.try_recv().is_err());
-    }
-
-    #[test]
-    fn set_socket_ready_true_cancels_hide_timeout() {
+    fn extra_disconnect_never_underflows_connection_count() {
         let (lifecycle, _rx) = make_lifecycle();
-
-        // Set ready=true — no timeout should be pending
-        lifecycle.set_socket_ready(true);
-        assert!(lifecycle.hide_timeout.lock().unwrap().is_none());
+        lifecycle.on_client_disconnected();
+        assert_eq!(lifecycle.connected_clients.get(), 0);
+        assert!(lifecycle.hide_timeout.borrow().is_none());
     }
 
     #[test]
-    fn initial_state_all_false() {
+    fn reconnect_cancels_delayed_hide_and_rejects_a_stale_hide() {
         let (lifecycle, _rx) = make_lifecycle();
-        assert!(!*lifecycle.client_connected.lock().unwrap());
-        assert!(!*lifecycle.socket_ready.lock().unwrap());
-        assert!(lifecycle.current_snapshot().is_none());
-    }
-
-    #[test]
-    fn lifecycle_sends_only_expected_commands() {
-        let (lifecycle, mut rx) = make_lifecycle();
+        lifecycle.on_client_connected();
+        lifecycle.on_client_disconnected();
+        assert!(lifecycle.hide_timeout.borrow().is_some());
 
         lifecycle.on_client_connected();
-        // No commands should be queued until a visible snapshot arrives.
-        assert!(rx.try_recv().is_err());
+
+        assert!(lifecycle.hide_timeout.borrow().is_none());
+        assert!(!lifecycle.should_hide());
     }
 }
