@@ -472,7 +472,7 @@ managed_vencord_valid() {
 }
 
 managed_vencord_safe_to_replace() {
-    local entry status path file
+    local entry path file
     [[ ! -e "$VENCORD_ROOT" ]] && return 0
     [[ -f "$VENCORD_ROOT/.discord-voice-overlay-build" && -d "$VENCORD_ROOT/.git" ]] || return 1
     if [[ -d "$VENCORD_ROOT/src/userplugins" ]]; then

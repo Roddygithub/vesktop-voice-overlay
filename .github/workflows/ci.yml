@@ -96,7 +96,7 @@ jobs:
         working-directory: .
         run: |
           bash -n install.sh tests/installer_test.sh
-          shellcheck install.sh tests/installer_test.sh
+          shellcheck -x install.sh tests/installer_test.sh
           tests/installer_test.sh
 
   vencord-integration:

@@ -127,6 +127,10 @@
   ambiguous `&&`/`||` conditional, and test-harness source/assignment/quoting
   analysis warnings. These were fixed directly without blanket suppressions;
   local syntax and all installer fixtures pass again.
+- The follow-up CI run reduced the remaining ShellCheck failure to an unused
+  local declaration and dynamic test-source analysis. The declaration is now
+  removed and CI runs ShellCheck with `-x` so the explicitly documented
+  `../install.sh` test source is followed rather than suppressed.
 
 - Reconciled release baseline `v1.2.1` at
   `61e3e2ae4135acd9eff55bf2a3a15fb4677d3f33`; the existing tag points at the
