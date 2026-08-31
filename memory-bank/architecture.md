@@ -209,6 +209,8 @@ publishes without a pushed tag.
 - Installer fixture mocks delegate non-fixture JavaScript execution to the
   runner's discovered Node executable, avoiding assumptions about setup-node's
   filesystem location.
+- The v1.3.0 candidate passed the complete main-branch CI workflow and both
+  CodeQL language analyses after this fixture portability correction.
 
 ## Dependency Maintenance
 

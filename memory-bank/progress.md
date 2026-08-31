@@ -139,6 +139,11 @@
   not the setup-node location on GitHub runners. The fixture now captures the
   runner-provided Node path before prepending its mock directory to `PATH`;
   local syntax and all installer cases pass with the portable delegation.
+- CI run `33398595767` is green on commit `34b83ef`, including the installer
+  ShellCheck/fixture gate, Rust/plugin validation, pinned Vencord discovery,
+  and the main-branch release build.
+- CodeQL run `33398595793` is green on the same commit for Rust and
+  JavaScript/TypeScript analysis.
 
 - Reconciled release baseline `v1.2.1` at
   `61e3e2ae4135acd9eff55bf2a3a15fb4677d3f33`; the existing tag points at the
