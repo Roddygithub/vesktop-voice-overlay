@@ -219,8 +219,10 @@ case_vesktop_lifecycle() {
         cp -- "$CASE_ROOT/overlay" "$CASE_ROOT/path with spaces/overlay"
         space_unit="$CASE_ROOT/space.service"
         (
+            # shellcheck source=../install.sh
             source "$INSTALLER"
             OVERLAY_EXECUTABLE="$CASE_ROOT/path with spaces/overlay"
+            export OVERLAY_EXECUTABLE
             service_content
         ) > "$space_unit"
         assert_contains "ExecStart=\"$CASE_ROOT/path with spaces/overlay\"" "$space_unit"
@@ -357,11 +359,11 @@ case_checksum_and_path_guards() {
     printf 'content\n' > "$CASE_ROOT/file"
     printf '%064d  file\n' 0 > "$CASE_ROOT/SHA256SUMS"
     if env HOME="$CASE_HOME" DVO_MANAGED_ROOT="$DVO_MANAGED_ROOT" bash -c \
-        'source "$1"; verify_checksum "$2" "$3" file' bash "$INSTALLER" "$CASE_ROOT/file" "$CASE_ROOT/SHA256SUMS"; then
+        "source \"\$1\"; verify_checksum \"\$2\" \"\$3\" file" bash "$INSTALLER" "$CASE_ROOT/file" "$CASE_ROOT/SHA256SUMS"; then
         fail 'invalid checksum unexpectedly passed'
     fi
     if env HOME="$CASE_HOME" DVO_MANAGED_ROOT="$DVO_MANAGED_ROOT" bash -c \
-        'source "$1"; remove_owned_tree "$2"' bash "$INSTALLER" "$CASE_HOME"; then
+        "source \"\$1\"; remove_owned_tree \"\$2\"" bash "$INSTALLER" "$CASE_HOME"; then
         fail 'unsafe path unexpectedly passed ownership guard'
     fi
     pass 'checksum and recursive-deletion guards fail closed'

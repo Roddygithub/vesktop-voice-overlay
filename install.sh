@@ -481,7 +481,7 @@ managed_vencord_safe_to_replace() {
             [[ "$(basename -- "$entry")" == vesktopVoiceOverlay ]] || return 1
         done
     fi
-    while IFS=' ' read -r status path; do
+    while IFS=' ' read -r _ path; do
         [[ -n "$path" ]] || continue
         case "$path" in
             .discord-voice-overlay-build|\
@@ -916,7 +916,11 @@ status_cmd() {
 doctor_cmd() {
     local command
     info "$PRODUCT_NAME doctor"
-    [[ "$(uname -s)" == Linux ]] && info 'OS: Linux' || warn 'OS is not Linux'
+    if [[ "$(uname -s)" == Linux ]]; then
+        info 'OS: Linux'
+    else
+        warn 'OS is not Linux'
+    fi
     for command in git pnpm node curl sha256sum realpath systemctl; do
         if command -v "$command" >/dev/null 2>&1; then info "  $command: $(command -v "$command")"; else warn "  missing command: $command"; fi
     done

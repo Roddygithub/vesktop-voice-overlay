@@ -122,6 +122,11 @@
   release workflow's pinned Vencord build/discovery validation remains required
   on the tag workflow; the same pinned build and plugin discovery were already
   proven during live acceptance.
+- The first pushed v1.3.0 candidate CI run executed the new installer gate and
+  failed only on actionable ShellCheck findings: an unused loop variable, an
+  ambiguous `&&`/`||` conditional, and test-harness source/assignment/quoting
+  analysis warnings. These were fixed directly without blanket suppressions;
+  local syntax and all installer fixtures pass again.
 
 - Reconciled release baseline `v1.2.1` at
   `61e3e2ae4135acd9eff55bf2a3a15fb4677d3f33`; the existing tag points at the
