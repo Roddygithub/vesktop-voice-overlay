@@ -144,6 +144,18 @@
   and the main-branch release build.
 - CodeQL run `33398595793` is green on the same commit for Rust and
   JavaScript/TypeScript analysis.
+- Annotated tag `v1.3.0` now points at the verified commit and the release
+  workflow `33399679638` completed successfully. The GitHub Release is
+  published with the overlay binary, `vesktop-voice-overlay-plugin-1.3.0.tgz`,
+  and `SHA256SUMS`; downloaded assets matched both checksums and the binary
+  reports `vesktop-voice-overlay 1.3.0`.
+- AUR publication was skipped cleanly because `AUR_SSH_PRIVATE_KEY` is not
+  configured. The release itself is not blocked by that deferred channel.
+- Final local state verification found no managed installer tree; the legacy
+  overlay service is enabled and active with `NRestarts=0`. The restored
+  Discord original resources, Vesktop state, overlay binary, and service files
+  match the approved rollback bundle. Shared Vencord settings remain enabled
+  by the documented conservative ownership rule.
 
 - Reconciled release baseline `v1.2.1` at
   `61e3e2ae4135acd9eff55bf2a3a15fb4677d3f33`; the existing tag points at the

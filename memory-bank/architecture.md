@@ -211,6 +211,9 @@ publishes without a pushed tag.
   filesystem location.
 - The v1.3.0 candidate passed the complete main-branch CI workflow and both
   CodeQL language analyses after this fixture portability correction.
+- Tag `v1.3.0` publishes the dynamically linked overlay binary, plugin source
+  bundle, and flat-path `SHA256SUMS`; the release workflow skips only the
+  optional AUR update when its maintainer secret is absent.
 
 ## Dependency Maintenance
 
