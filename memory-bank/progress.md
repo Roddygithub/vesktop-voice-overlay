@@ -13,6 +13,22 @@
 - This closes the final human-only release gate. No source changes were made
   during deployment or validation.
 
+## v1.2.0 release execution — 2026-08-31
+
+- **PASS**: commits `8db0f62` and `996a91f` were pushed to `main`; CI run
+  `33369404382` and CodeQL run `33369404207` completed successfully on
+  `996a91f3e7c52f1da355db32859c1d3aa1830c97`.
+- **PASS**: annotated tag `v1.2.0` was pushed and release workflow
+  `33369848885` completed successfully, including overlay/plugin builds and
+  GitHub Release creation.
+- **PASS**: published overlay and plugin assets were downloaded and both
+  entries in `SHA256SUMS` matched locally.
+- **AUR**: publication was skipped cleanly because `AUR_SSH_PRIVATE_KEY` is
+  not configured. The AUR RPC reports no `vesktop-voice-overlay` package;
+  first publication therefore still requires registering the package in the
+  AUR and providing a maintainer SSH key. The current workflow can update an
+  existing AUR repository but cannot bootstrap the registration itself.
+
 ## v1.2.0 final XHIGH review — 2026-08-31
 
 - Independent challenge found unsafe `/tmp` fallback trust, dropped avatar

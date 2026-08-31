@@ -129,8 +129,10 @@ concurrent test-harness threads. CI executes that suite under Xvfb.
 
 Tag releases verify Cargo/npm versions, rerun Rust/plugin/pinned-Vencord gates,
 build from the tag checkout, publish flat-path SHA-256 checksums, and update the
-AUR source checksum when credentials exist. First publication uses the AUR's
-required `master` branch and includes a 0BSD package-source license. No workflow
+AUR source checksum when credentials exist and the package has already been
+registered. The AUR job uses the required `master` branch and includes the
+package-source license, but it cannot create an unregistered AUR package; first
+publication requires AUR registration plus the maintainer SSH key. No workflow
 publishes without a pushed tag.
 
 ## Dependency Maintenance
