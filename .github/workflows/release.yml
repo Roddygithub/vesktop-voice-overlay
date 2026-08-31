@@ -211,7 +211,7 @@ jobs:
         id: sha256
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          URL="https://github.com/Roddygithub/vesktop-voice-overlay/archive/refs/tags/v${VERSION}.tar.gz"
+          URL="https://github.com/Roddygithub/discord-voice-overlay/archive/refs/tags/v${VERSION}.tar.gz"
           ARCHIVE="/tmp/vesktop-voice-overlay-${VERSION}.tar.gz"
           curl -fsSL "$URL" -o "$ARCHIVE"
           SHA256=$(sha256sum "$ARCHIVE" | cut -d' ' -f1)

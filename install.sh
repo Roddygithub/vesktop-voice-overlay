@@ -7,7 +7,7 @@ INSTALLER_VERSION="1.3.0"
 OVERLAY_VERSION="${DVO_OVERLAY_VERSION:-1.3.0}"
 VENCORD_REPO="${DVO_VENCORD_REPO:-https://github.com/Vendicated/Vencord.git}"
 VENCORD_REV="${DVO_VENCORD_REV:-ef29bbeb6119cfb53d1273ed78147bcc97d91261}"
-RELEASE_REPO="Roddygithub/vesktop-voice-overlay"
+RELEASE_REPO="Roddygithub/discord-voice-overlay"
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 
 : "${HOME:?HOME must be set}"

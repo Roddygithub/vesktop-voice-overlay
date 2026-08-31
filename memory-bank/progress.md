@@ -2,6 +2,25 @@
 
 ## Statut Global
 
+## Post-v1.3.0 Local Cleanup and Repository Rename — 2026-08-31
+
+- v1.3.0 is installed through the supported manager for Vesktop. The managed
+  binary reports `1.3.0`; the Vencord checkout is pinned to
+  `ef29bbeb6119cfb53d1273ed78147bcc97d91261`; `VesktopVoiceOverlay` is enabled.
+- Vesktop `1.6.7-1` launches and remains the active daily client. The managed
+  user service is active, enabled, uses the managed v1.3.0 binary, has
+  `NRestarts=0`, and exposes the user-only socket.
+- The legacy v1.2.0 service, drop-in, and local binary were removed before
+  installing the managed service. Vesktop state, shared Vencord settings,
+  overlay config, and `/home/roddy/.cache/dvo-clean-target-rollback` were kept.
+- Native Discord `1:1.0.155-1` has no project-owned injection (`_app.asar` is
+  absent) and no reverse dependencies. Package removal is blocked only because
+  the current session cannot provide the required sudo password.
+- GitHub repository identity was renamed from
+  `Roddygithub/vesktop-voice-overlay` to `Roddygithub/discord-voice-overlay`.
+  Public repository references were updated while compatibility-sensitive
+  runtime identifiers were preserved.
+
 ## Universal Installer Candidate — 2026-08-31
 
 ### Clean-target acceptance — blocked

@@ -1,9 +1,9 @@
 # Discord Voice Overlay
 
-[![CI](https://github.com/Roddygithub/vesktop-voice-overlay/workflows/CI/badge.svg)](https://github.com/Roddygithub/vesktop-voice-overlay/actions/workflows/ci.yml)
-[![Release](https://github.com/Roddygithub/vesktop-voice-overlay/workflows/Release/badge.svg)](https://github.com/Roddygithub/vesktop-voice-overlay/actions/workflows/release.yml)
+[![CI](https://github.com/Roddygithub/discord-voice-overlay/workflows/CI/badge.svg)](https://github.com/Roddygithub/discord-voice-overlay/actions/workflows/ci.yml)
+[![Release](https://github.com/Roddygithub/discord-voice-overlay/workflows/Release/badge.svg)](https://github.com/Roddygithub/discord-voice-overlay/actions/workflows/release.yml)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](https://opensource.org/licenses/GPL-3.0)
-[![Version](https://img.shields.io/github/v/tag/Roddygithub/vesktop-voice-overlay?label=version&sort=semver)](https://github.com/Roddygithub/vesktop-voice-overlay/releases)
+[![Version](https://img.shields.io/github/v/tag/Roddygithub/discord-voice-overlay?label=version&sort=semver)](https://github.com/Roddygithub/discord-voice-overlay/releases)
 
 A native Wayland voice activity overlay for Discord Desktop and Vesktop on Linux.
 
@@ -56,8 +56,8 @@ client without changing pacman packages or requiring root. It supports native
 Arch Linux Discord Desktop and Vesktop installations:
 
 ```bash
-git clone https://github.com/Roddygithub/vesktop-voice-overlay.git
-cd vesktop-voice-overlay
+git clone https://github.com/Roddygithub/discord-voice-overlay.git
+cd discord-voice-overlay
 ./install.sh
 ```
 
@@ -82,7 +82,7 @@ Vencord/injected setups are detected or rejected safely; see
 modifying client, service, or overlay state.
 
 Release binaries and plugin source bundles are available on the
-[`v1.3.0 release`](https://github.com/Roddygithub/vesktop-voice-overlay/releases/tag/v1.3.0)
+[`v1.3.0 release`](https://github.com/Roddygithub/discord-voice-overlay/releases/tag/v1.3.0)
 page; the manager normally downloads and verifies the matching release assets
 for you.
 
@@ -105,8 +105,8 @@ the primary v1.3.0 installation path.
 sudo pacman -S rust gtk4 gtk4-layer-shell pkg-config
 
 # 2. Build the overlay
-git clone https://github.com/Roddygithub/vesktop-voice-overlay.git
-cd vesktop-voice-overlay/overlay
+git clone https://github.com/Roddygithub/discord-voice-overlay.git
+cd discord-voice-overlay/overlay
 cargo build --release --locked
 
 # 3. Build Vencord with the source userplugin (instructions below), then run
@@ -130,15 +130,15 @@ sudo pacman -S rust gtk4 libadwaita gtk4-layer-shell pkg-config
 
 #### Build Overlay (Rust)
 ```bash
-git clone https://github.com/Roddygithub/vesktop-voice-overlay.git
-cd vesktop-voice-overlay/overlay
+git clone https://github.com/Roddygithub/discord-voice-overlay.git
+cd discord-voice-overlay/overlay
 cargo build --release --locked
 # Binary at: target/release/vesktop-voice-overlay
 ```
 
 #### Pack Plugin Source (optional)
 ```bash
-cd ~/vesktop-voice-overlay/plugin
+cd ~/discord-voice-overlay/plugin
 npm ci
 npm pack  # Produces a source bundle, not a directly installable Vesktop plugin
 ```

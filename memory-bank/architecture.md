@@ -3,6 +3,8 @@
 ## Public Branding and Compatibility
 
 - The public product name is **Discord Voice Overlay**.
+- The canonical source repository is
+  `https://github.com/Roddygithub/discord-voice-overlay`.
 - The persisted plugin name `VesktopVoiceOverlay`, native bridge lookup,
   `VESKTOP_VOICE_OVERLAY/1.0` protocol header, binary, service, socket, config,
   package, and repository identifiers remain unchanged. Renaming those values
