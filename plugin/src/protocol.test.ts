@@ -3,6 +3,7 @@ import {
   serializeSnapshot,
   deserializeSnapshot,
   normalizeCoordinate,
+  positionForCustomCoordinateChange,
   serializeClear,
   speakingEventState,
   speakingEventUserId,
@@ -73,6 +74,11 @@ describe('Protocol v1', () => {
     expect(normalizeCoordinate(50000)).toBe(32768);
     expect(normalizeCoordinate(-50000)).toBe(-32768);
     expect(normalizeCoordinate(Number.NaN)).toBe(0);
+  });
+
+  it('activates custom positioning when a coordinate changes', () => {
+    expect(positionForCustomCoordinateChange('top-right')).toBe('custom');
+    expect(positionForCustomCoordinateChange('custom')).toBe('custom');
   });
 
   it('accepts camelCase and snake_case speaking event fields', () => {

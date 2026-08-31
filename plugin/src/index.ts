@@ -2,6 +2,7 @@ import { definePluginSettings } from "@api/Settings";
 import definePlugin, { OptionType, PluginNative } from "@utils/types";
 import {
     normalizeCoordinate,
+    positionForCustomCoordinateChange,
     serializeClear,
     serializeSnapshot,
     speakingEventState,
@@ -31,6 +32,12 @@ function sendSettings() {
             avatar_size_mode: settings.store.avatarSize,
         },
     }));
+}
+
+function activateCustomPosition() {
+    const position = positionForCustomCoordinateChange(settings.store.position);
+    if (position === settings.store.position) sendSettings();
+    else settings.store.position = position;
 }
 
 const settings = definePluginSettings({
@@ -85,13 +92,13 @@ const settings = definePluginSettings({
         type: OptionType.NUMBER,
         description: "Custom horizontal offset from the left edge",
         default: 20,
-        onChange: sendSettings,
+        onChange: activateCustomPosition,
     },
     customY: {
         type: OptionType.NUMBER,
         description: "Custom vertical offset from the top edge",
         default: 20,
-        onChange: sendSettings,
+        onChange: activateCustomPosition,
     },
 });
 
@@ -123,7 +130,7 @@ function cleanupSpeakingForChannel() {
 
 export default definePlugin({
     name: "VesktopVoiceOverlay",
-    description: "Wayland-native voice activity overlay for Vesktop",
+    description: "Wayland-native voice activity overlay for Discord Desktop and Vesktop",
     authors: [{ name: "Roddy", id: 0n }],
     tags: ["Voice"],
     settings,
@@ -150,7 +157,7 @@ export default definePlugin({
         })().catch(error => {
             if (generation !== lifecycleGeneration) return;
             console.error(
-                "[Vesktop Voice Overlay] Failed to start socket client:",
+                "[Discord Voice Overlay] Failed to start socket client:",
                 error instanceof Error ? error.message : String(error),
             );
         });

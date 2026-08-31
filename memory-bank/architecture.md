@@ -1,4 +1,12 @@
-# Architecture - Vesktop Voice Overlay
+# Architecture - Discord Voice Overlay
+
+## Public Branding and Compatibility
+
+- The public product name is **Discord Voice Overlay**.
+- The persisted plugin name `VesktopVoiceOverlay`, native bridge lookup,
+  `VESKTOP_VOICE_OVERLAY/1.0` protocol header, binary, service, socket, config,
+  package, and repository identifiers remain unchanged. Renaming those values
+  would risk breaking existing settings, clients, or installations.
 
 ## Runtime Data Path
 
@@ -114,6 +122,15 @@ Plugin settings override enabled state, position, coordinates, user/name
 display modes, and avatar-size mode in memory. Legacy appearance and numeric
 avatar-size fields are ignored.
 
+Editing either custom coordinate selects the `custom` position mode before the
+settings snapshot is sent, so coordinate fields cannot silently remain paired
+with a preset anchor. On Hyprland, the reported surface Y also includes any
+exclusive top-bar area before the requested top margin.
+
+The `center` preset leaves all layer-shell edges unanchored so the compositor
+centers the natural-size surface; anchoring all four edges would instead place
+the natural-size surface at the usable top-left.
+
 ## Distribution And Validation
 
 The repository contains an unpublished Arch source-package template plus a
@@ -148,6 +165,8 @@ publishes without a pushed tag.
   speaking transitions, mute/deaf badges, live avatar refresh, overlay and
   Vesktop restart/reconnect, channel leave clearing, and click-through over a
   game on the current v1.2.0 candidate deployment.
+- Human validation also passed custom X/Y movement and position persistence after
+  overlay restart/reconnect on the Discord Desktop POC with the shared plugin.
 - Layer-shell placement and fullscreen behavior were validated in the same
   Hyprland/game session. Sway, niri, wayfire, GNOME, KDE, and multi-monitor
   behavior remain unverified.

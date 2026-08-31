@@ -1,4 +1,4 @@
-# Tech Stack - Vesktop Voice Overlay
+# Tech Stack - Discord Voice Overlay
 
 ## Runtime
 

@@ -1,4 +1,4 @@
-# Vesktop Voice Overlay - Socket Protocol v1
+# Discord Voice Overlay - Socket Protocol v1
 
 ## Transport
 

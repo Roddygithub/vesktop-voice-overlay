@@ -1,7 +1,7 @@
 {
   "name": "vesktop-voice-overlay-plugin",
-  "version": "1.2.0",
-  "description": "Vencord plugin for Vesktop Voice Overlay",
+  "version": "1.2.1",
+  "description": "Vencord plugin for Discord Voice Overlay",
   "main": "src/index.ts",
   "files": [
     "src/index.ts",

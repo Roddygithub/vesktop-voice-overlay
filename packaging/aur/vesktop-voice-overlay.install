@@ -1,5 +1,5 @@
 post_install() {
-  echo "Vesktop Voice Overlay installed!"
+  echo "Discord Voice Overlay installed!"
   echo ""
   echo "1. Build the Vencord source userplugin:"
   echo "   Follow the pinned Vencord integration steps in the project README."

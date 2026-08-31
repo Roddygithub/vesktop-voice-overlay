@@ -1,4 +1,4 @@
-# Product Requirements Document — Vesktop Voice Overlay
+# Product Requirements Document — Discord Voice Overlay
 
 ## 1. Problème
 

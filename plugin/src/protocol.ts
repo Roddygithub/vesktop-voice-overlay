@@ -46,6 +46,10 @@ export function normalizeCoordinate(value: number): number {
   return Math.max(-32768, Math.min(32768, Math.trunc(value)));
 }
 
+export function positionForCustomCoordinateChange(position: string): string {
+  return position === "custom" ? position : "custom";
+}
+
 export function speakingEventUserId(event: unknown): string | null {
   if (!event || typeof event !== "object") return null;
   const value = event as Record<string, unknown>;

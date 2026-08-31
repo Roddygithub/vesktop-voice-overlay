@@ -81,7 +81,7 @@ fn main() -> Result<()> {
     init_logging(args.debug);
 
     info!(
-        "Starting Vesktop Voice Overlay v{}",
+        "Starting Discord Voice Overlay v{}",
         env!("CARGO_PKG_VERSION")
     );
 

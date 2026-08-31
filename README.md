@@ -1,15 +1,15 @@
-# Vesktop Voice Overlay
+# Discord Voice Overlay
 
 [![CI](https://github.com/Roddygithub/vesktop-voice-overlay/workflows/CI/badge.svg)](https://github.com/Roddygithub/vesktop-voice-overlay/actions/workflows/ci.yml)
 [![Release](https://github.com/Roddygithub/vesktop-voice-overlay/workflows/Release/badge.svg)](https://github.com/Roddygithub/vesktop-voice-overlay/actions/workflows/release.yml)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](https://opensource.org/licenses/GPL-3.0)
 [![Version](https://img.shields.io/github/v/tag/Roddygithub/vesktop-voice-overlay?label=version&sort=semver)](https://github.com/Roddygithub/vesktop-voice-overlay/releases)
 
-A **Wayland-native** voice activity overlay for **Vesktop**, built with **TypeScript**, **Rust**, and **GTK4**.
+A **Wayland-native** voice activity overlay for **Discord Desktop and Vesktop**, built with **TypeScript**, **Rust**, and **GTK4**.
 
 ## Overview
 
-A lightweight, highly responsive, **Wayland-native (layer-shell)** overlay that displays current voice channel participants and highlights active speakers in Vesktop.
+A lightweight, highly responsive, **Wayland-native (layer-shell)** overlay that displays current voice channel participants and highlights active speakers in Discord Desktop or Vesktop.
 
 ### Key Features
 
@@ -17,21 +17,21 @@ A lightweight, highly responsive, **Wayland-native (layer-shell)** overlay that 
 - 🖥️ **Wayland-native**: Uses `layer-shell` protocol with an empty input region, so mouse clicks pass through to whatever is underneath (wlroots compositors: Hyprland, sway, niri, etc.)
 - ⚡ **Low latency**: Event-driven voice updates over a local Unix socket
 - 🎮 **Game compatible**: Click-through overlay works over fullscreen XWayland games
-- 🔄 **Auto-reconnect**: Fast bounded backoff (≤ 2s) if Vesktop or the overlay restarts; the latest settings and voice snapshot are replayed automatically so no voice activity is needed to repopulate the overlay
+- 🔄 **Auto-reconnect**: Fast bounded backoff (≤ 2s) if Discord Desktop, Vesktop, or the overlay restarts; the latest settings and voice snapshot are replayed automatically so no voice activity is needed to repopulate the overlay
 - 🚀 **Session autostart**: ships a `systemd --user` service (`vesktop-voice-overlay.service`)
 
 ## Architecture
 
 ```
 ┌─────────────────┐     Unix Socket ($XDG_RUNTIME_DIR)      ┌──────────────────┐
-│  Vesktop Host   │ ──────────────────────────────────────► │  Overlay Client  │
+│ Discord/Vesktop │ ──────────────────────────────────────► │  Overlay Client  │
 │ (Vencord Plugin)│ ◄────────────────────────────────────── │  (Rust + GTK4)   │
 └─────────────────┘            user-only (0700)             └──────────────────┘
 ```
 
 | Component | Technology | Role |
 |-----------|------------|------|
-| **Vencord Plugin** | TypeScript / Node.js | Runs inside Vesktop, extracts voice state, sends JSON snapshots via Unix socket |
+| **Vencord Plugin** | TypeScript / Node.js | Runs inside Discord Desktop or Vesktop, extracts voice state, sends JSON snapshots via Unix socket |
 | **Overlay App** | Rust / GTK4 / layer-shell | Wayland click-through overlay, receives snapshots, renders avatars + speaking indicators |
 
 ### Security & Privacy
@@ -95,7 +95,7 @@ built-in plugin set.
 
 ### Development: Vencord userplugin workflow (supported)
 
-This is the workflow used for development and for custom Vesktop builds
+This is the workflow used for development and for custom Vencord client builds
 (this is how the plugin is actually built and loaded when using a local
 Vencord):
 
@@ -111,13 +111,13 @@ cp <repo>/plugin/src/{index.ts,native.ts,protocol.ts,resendCache.ts,voiceState.t
 pnpm install --no-frozen-lockfile
 pnpm build
 
-# REQUIRED: without this sentinel file, Vesktop considers the dist dir
+# REQUIRED: without this sentinel file, the client considers the dist dir
 # invalid and silently downloads stock Vencord over your build at launch.
 printf '{}\n' > dist/package.json
 ```
 
 Then point Vesktop at the build: Developer Settings → Vencord Location →
-select `.../Vencord/dist`, and fully restart Vesktop.
+select `.../Vencord/dist`, and fully restart the client.
 
 Verification: `grep -c VesktopVoiceOverlay dist/vencordDesktopRenderer.js`
 and `dist/vencordDesktopMain.js` must both be ≥ 1.
@@ -133,7 +133,7 @@ RUST_LOG=debug ./target/release/vesktop-voice-overlay
 
 ## Configuration
 
-Runtime behavior is driven by the plugin settings in Vesktop
+Runtime behavior is driven by the plugin settings in Discord Desktop or Vesktop
 (Vencord plugin options: position, custom X/Y, user display, name display,
 avatar size). Changes apply immediately and are replayed automatically after
 any restart.
@@ -157,7 +157,7 @@ plugin always uses the runtime-directory path.
 ## Usage
 
 1. Start the overlay (`systemctl --user start vesktop-voice-overlay` or `./target/release/vesktop-voice-overlay`)
-2. Open Vesktop and join a voice channel
+2. Open Discord Desktop or Vesktop and join a voice channel
 3. Overlay appears automatically with participant avatars
 4. **Green ring** = currently speaking (static highlight)
 
@@ -287,7 +287,8 @@ GPL-3.0 — See [LICENSE](LICENSE)
 
 Compatible with upstream projects:
 - [Discover Overlay](https://github.com/trigg/Discover) (GPL-3.0) — Design inspiration
-- [Vesktop](https://github.com/Vencord/Vesktop) (GPL-3.0) — Target client
+- [Vesktop](https://github.com/Vencord/Vesktop) (GPL-3.0) — Supported client
+- [Discord](https://discord.com/) — Supported client
 - [Vencord](https://github.com/Vendicated/Vencord) (GPL-3.0) — Plugin platform
 
 ## Disclaimer

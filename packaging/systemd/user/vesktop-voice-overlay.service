@@ -1,5 +1,5 @@
 [Unit]
-Description=Vesktop Voice Overlay (Wayland layer-shell voice widget)
+Description=Discord Voice Overlay (Wayland layer-shell voice widget)
 PartOf=graphical-session.target
 After=graphical-session.target
 

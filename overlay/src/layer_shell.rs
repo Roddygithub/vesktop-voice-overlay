@@ -26,7 +26,7 @@ pub fn create_layer_shell_window(
 ) -> Result<gtk4::ApplicationWindow> {
     let window = gtk4::ApplicationWindow::builder()
         .application(app)
-        .title("Vesktop Voice Overlay")
+        .title("Discord Voice Overlay")
         .decorated(false)
         .resizable(false)
         .build();
@@ -106,10 +106,7 @@ fn set_anchors(window: &gtk4::ApplicationWindow, position: &str, custom_x: i32, 
             window.set_margin(Edge::Right, 20);
         }
         "center" => {
-            window.set_anchor(Edge::Top, true);
-            window.set_anchor(Edge::Bottom, true);
-            window.set_anchor(Edge::Left, true);
-            window.set_anchor(Edge::Right, true);
+            // With no anchors, layer-shell centers a natural-size surface.
         }
         "custom" => {
             window.set_anchor(Edge::Top, true);

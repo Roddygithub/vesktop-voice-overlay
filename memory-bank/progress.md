@@ -1,6 +1,46 @@
-# Progress — Vesktop Voice Overlay
+# Progress — Discord Voice Overlay
 
 ## Statut Global
+
+## v1.2.1 Release Candidate Validation — 2026-08-31
+
+- Public branding is now **Discord Voice Overlay**; the persisted plugin name,
+  native bridge lookup, protocol header, binary, service, socket, and config
+  identifiers remain unchanged for compatibility.
+- Version metadata is aligned at `1.2.1` across the plugin, Cargo package, AUR
+  template, generated `.SRCINFO`, and release changelog.
+- Plugin validation passed: `npm ci`, lint, `25/25` tests, audit with zero
+  vulnerabilities, and npm package dry-run for the `1.2.1` source bundle.
+- Overlay validation passed: format check, clippy with warnings denied,
+  `39/39` tests, release build, and release-debug build.
+- Pinned Vencord integration passed at revision
+  `ef29bbeb6119cfb53d1273ed78147bcc97d91261`; both desktop bundles contain the
+  `VesktopVoiceOverlay` plugin identifier.
+
+## Custom position diagnosis and fix — 2026-08-31
+
+- **Root cause**: Custom X/Y changes were serialized and received correctly,
+  but the active `position` remained `top-right`; Rust therefore correctly
+  ignored the custom margins. This was a shared plugin-settings UX/state issue,
+  not Discord, IPC, serde, GTK, or compositor failure.
+- **Evidence**: live logs recorded `position=top-right, custom_x=800,
+  custom_y=300`; forcing `position=custom` produced a Hyprland layer at
+  `x=800`; the observed `y=326` includes Hyprland's 26px exclusive top bar.
+- **Fix**: changing either Custom X or Custom Y now activates
+  `position=custom`; values changed while already custom still send immediately.
+- **Plugin regression**: the shared `positionForCustomCoordinateChange` policy
+  is covered by the plugin suite; both coordinate settings use the same handler.
+- **Preset regression**: the existing `center` branch incorrectly anchored all
+  four edges, placing the natural-size surface at the usable top-left. Leaving
+  it unanchored restores compositor-centered placement.
+- **Validation**: Rust fmt/clippy/tests and release/release-debug builds pass;
+  plugin tests `25/25`, lint, and npm audit pass; pinned Discord-target
+  Vencord build passes.
+- **Layer-shell probe**: all six modes now produced distinct expected Hyprland
+  geometries; custom `800/300` mapped at `800/326` with the 26px top bar.
+- **Human validation PASS**: Custom X/Y movement, custom position persistence
+  after overlay restart/reconnect, and all previously requested Discord Desktop
+  runtime checks passed in the rebuilt POC.
 
 ## v1.2.0 human validation — 2026-08-31
 

@@ -153,10 +153,14 @@ mod tests {
     fn test_deserialize_valid_settings() {
         let json = r#"{"type":"settings","settings":{"enabled":true,"position":"custom","custom_x":120,"custom_y":80,"user_display":"speaking_only","name_display":"always","avatar_size_mode":"small"}}"#;
 
-        assert!(matches!(
-            deserialize_client_message(json),
-            Some(ClientMessage::Settings { .. })
-        ));
+        match deserialize_client_message(json) {
+            Some(ClientMessage::Settings { settings }) => {
+                assert_eq!(settings.position, "custom");
+                assert_eq!(settings.custom_x, 120);
+                assert_eq!(settings.custom_y, 80);
+            }
+            other => panic!("Expected valid settings message, got {other:?}"),
+        }
     }
 
     #[test]

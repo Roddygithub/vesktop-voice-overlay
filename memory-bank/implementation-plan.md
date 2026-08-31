@@ -1,4 +1,4 @@
-# Implementation Plan — Vesktop Voice Overlay
+# Implementation Plan — Discord Voice Overlay
 
 > Historical planning document. Checkboxes and acceptance criteria below are
 > goals, not evidence of current implementation. Use `README.md`,

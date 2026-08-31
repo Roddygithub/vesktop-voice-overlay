@@ -91,7 +91,7 @@ export function startSocket(
                 if (socket !== newSocket || stopped) return;
                 headerBuffer += data.toString();
                 if (Buffer.byteLength(headerBuffer) > MAX_HEADER_BYTES) {
-                    console.error("[Vesktop Voice Overlay] Protocol header is too large");
+                    console.error("[Discord Voice Overlay] Protocol header is too large");
                     newSocket.destroy();
                     return;
                 }
@@ -110,7 +110,7 @@ export function startSocket(
                         }
                         flushQueue();
                     } else {
-                        console.error("[Vesktop Voice Overlay] Invalid protocol header");
+                        console.error("[Discord Voice Overlay] Invalid protocol header");
                         newSocket.destroy();
                     }
                 }
@@ -127,7 +127,7 @@ export function startSocket(
         newSocket.on("error", (err: Error) => {
             if (socket !== newSocket || stopped) return;
             if (reconnectAttempts === 0 || reconnectAttempts % 15 === 0) {
-                console.warn("[Vesktop Voice Overlay] Socket unavailable:", err.message);
+                console.warn("[Discord Voice Overlay] Socket unavailable:", err.message);
             }
             scheduleReconnect();
         });
@@ -144,7 +144,7 @@ export function startSocket(
 
     function send(line: string) {
         if (Buffer.byteLength(line) > MAX_PAYLOAD_BYTES) {
-            console.error("[Vesktop Voice Overlay] Refusing oversized outgoing payload");
+            console.error("[Discord Voice Overlay] Refusing oversized outgoing payload");
             if (classifyMessage(line) !== "snapshot") return;
             line = CLEAR_LINE;
         }

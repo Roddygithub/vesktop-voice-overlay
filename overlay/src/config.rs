@@ -188,9 +188,9 @@ mod tests {
         let mut config = Config::default();
         let settings = OverlaySettings {
             enabled: true,
-            position: "top-right".into(),
-            custom_x: 0,
-            custom_y: 0,
+            position: "custom".into(),
+            custom_x: 800,
+            custom_y: 300,
             user_display: UserDisplayMode::Always,
             name_display: NameDisplayMode::Always,
             avatar_size_mode: AvatarSizeMode::Large,
@@ -198,6 +198,9 @@ mod tests {
 
         config.apply_overlay_settings(settings);
 
+        assert_eq!(config.overlay.position, "custom");
+        assert_eq!(config.overlay.custom_x, 800);
+        assert_eq!(config.overlay.custom_y, 300);
         assert_eq!(config.overlay.avatar_size_mode, AvatarSizeMode::Large);
         assert_eq!(config.avatar_size_px(), 40);
     }

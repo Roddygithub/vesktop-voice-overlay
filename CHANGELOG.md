@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-08-31
+
+### Fixed
+- Custom X/Y changes now activate custom positioning immediately.
+- Center positioning no longer pins the overlay to the usable top-left corner.
+
+### Changed
+- Public branding is now Discord Voice Overlay; internal plugin, bridge,
+  protocol, binary, service, and socket identifiers remain unchanged for
+  compatibility.
+
 ## [1.2.0] - 2026-08-31
 
 ### Added

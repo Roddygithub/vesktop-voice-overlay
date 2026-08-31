@@ -15,8 +15,8 @@ Steps to reproduce the behavior.
 **Environment** (please fill all fields)
 - Distro: [e.g. Arch Linux, Omarchy 4.0]
 - Compositor: [e.g. Hyprland 0.56, sway 1.10]
-- Vesktop version: [output of `vesktop --version` or check Settings]
-- Vencord: [built-in Vesktop Vencord or custom build? if custom, which revision?]
+- Client version: [Discord Desktop or Vesktop version]
+- Vencord: [built-in client Vencord or custom build? if custom, which revision?]
 - Overlay version: [output of `vesktop-voice-overlay --version`]
 - Session type: [Wayland / X11]
 - Game tested (if applicable): [name + display mode: fullscreen/borderless/windowed]
